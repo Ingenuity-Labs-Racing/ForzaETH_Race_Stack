@@ -2,7 +2,7 @@ ros_env_setup="/opt/ros/$ROS_DISTRO/setup.bash"
 echo "sourcing   $ros_env_setup"
 source "$ros_env_setup"
 source "/home/$USER/catkin_ws/devel/setup.bash"
-alias sauce='source /opt/ros/noetic/setup.bash && source /home/${USER}/catkin_ws/devel/setup.bash'
+alias sauce='source /opt/ros/noetic/setup.bash && source /home/${USER}/catkin_ws/devel/setup.bash && echo "SAUCED"'
 alias scripz='cd /home/${USER}/catkin_ws/src/race_stack/stack_master/scripts'
 alias switch_map='/home/${USER}/catkin_ws/src/race_stack/stack_master/scripts/switch_map.sh $1'
 
