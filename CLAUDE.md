@@ -4,15 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-ForzaETH Race Stack is an autonomous racing system for F1TENTH vehicles developed at ETH Zurich's D-ITET Center for Project Based Learning. The stack supports both time-trials and head-to-head racing in simulation and on real hardware.
+ForzaETH Race Stack is an autonomous racing system for 1/10 scale F1TENTH racecars developed by ETH Zurich's Center for Project Based Learning. The stack supports both time-trials and head-to-head racing scenarios, running on ROS Noetic with both simulation and real hardware deployments.
 
-This is a ROS Noetic catkin workspace with both Python and C++ packages.
+## Build and Development Commands
 
-## Build Commands
+### Building the System
 
-### Initial Setup (Docker - Recommended)
 ```bash
-# Build base docker image
+# Build entire workspace
+catkin build
+
+# After building, source the environment
+source /opt/ros/noetic/setup.bash && source ~/catkin_ws/devel/setup.bash
+```
+
+### Docker Deployment
+
+```bash
+# Build base image (x86)
 docker compose build base_x86
 
 # Build simulator container
@@ -20,188 +29,194 @@ export UID=$(id -u)
 export GID=$(id -g)
 docker compose build sim_x86
 
-# Create cache directories
-mkdir -p ../race_stack_cache/noetic/build ../race_stack_cache/noetic/devel ../race_stack_cache/noetic/logs
+# Ensure cache directories exist at ../race_stack_cache/noetic/{build,devel,logs}
 ```
 
-### Initial Setup (Native)
+### Running the Stack
+
+**Simulator with base system:**
 ```bash
-# Install dependencies (car)
-xargs sudo apt-get install -y < ./.install_utils/linux_req_car.txt
-pip install -r ./.devcontainer/.install_utils/requirements.txt
-pip install ~/catkin_ws/src/race_stack/f110_utils/libs/ccma
-pip install -e ~/catkin_ws/src/race_stack/planner/graph_based_planner/src/GraphBasedPlanner
-
-# Install cartographer and particle filter
-chmod +x ./.devcontainer/.install_utils/cartographer_setup.sh
-sudo ./.devcontainer/.install_utils/cartographer_setup.sh
-chmod +x ./.devcontainer/.install_utils/pf_setup.sh
-sudo ./.devcontainer/.install_utils/pf_setup.sh
-```
-
-### Build
-```bash
-catkin build
-```
-
-### Re-source after build
-```bash
-source /opt/ros/noetic/setup.bash && source ~/catkin_ws/devel/setup.bash
-```
-
-## Running the System
-
-### Simulation Test
-```bash
-# Terminal 1: Launch base system with simulator
 roslaunch stack_master base_system.launch sim:=true map_name:=test_map
-
-# Terminal 2: Launch time trials
-roslaunch stack_master time_trials.launch racecar_version:=NUC2
 ```
 
-### Real Car - Time Trials
+**Time trials:**
 ```bash
-# Terminal 1: Launch roscore (optional but recommended)
-roscore
+# In terminal 1: Launch base system
+roslaunch stack_master base_system.launch map_name:=<map_name> racecar_version:=<NUCX>
 
-# Terminal 2: Launch base system
-roslaunch stack_master base_system.launch map_name:=<map_name> racecar_version:=<NUC2|JET1>
-
-# Terminal 3: Launch time trials
-roslaunch stack_master time_trials.launch ctrl_algo:=<PP|MAP|STMPC|KMPC> LU_table:=<LU_table_name>
-# Note: LU_table only required for MAP controller
+# In terminal 2: Launch time trials
+roslaunch stack_master time_trials.launch racecar_version:=<NUCX> ctrl_algo:=<MAP|PP|KMPC|STMPC> LU_table:=<NUCX_map_pacejka>
 ```
 
-### Real Car - Head-to-Head Racing
+**Head-to-head racing:**
 ```bash
-roslaunch stack_master headtohead.launch ctrl_algo:=<PP|MAP|STMPC|KMPC> LU_table:=<table> planner:=<frenet|graph_based|spliner|predictive_spliner>
+roslaunch stack_master headtohead.launch racecar_version:=<NUCX> ctrl_algo:=<MAP|PP|KMPC|STMPC> LU_table:=<NUCX_map_pacejka> planner:=<frenet|graph_based|spliner|predictive_spliner>
 ```
 
-### Mapping
+**Mapping (on real car):**
 ```bash
 roslaunch stack_master mapping.launch map_name:=<map_name> racecar_version:=<NUCX>
-# After completing a lap, use GUI to select sectors and overtaking sectors
-# Then re-source the workspace
 ```
 
-### Localization Options
+### Testing
+
 ```bash
-# Choose between SLAM (default) or particle filter
-roslaunch stack_master base_system.launch map_name:=<map> racecar_version:=<NUC> localization:=<slam|pf>
+# BayesOpt4ROS unit tests
+cd f110_utils/nodes/bayesopt4ros
+pytest test/unit/
 ```
 
-## Architecture
+## High-Level Architecture
 
-The race stack follows a modular architecture with clear separation of concerns:
+### System Structure
 
-### Core Modules
+The race stack is organized into modular ROS packages across several key domains:
 
-**base_system**: Hardware interfaces and simulator
-- `f1tenth_system`: Real car interfaces (VESC, sensors, joystick)
-- `f110-simulator`: Modified F1TENTH simulator
+**Core System Layers:**
+- `stack_master/` - Main interface and launch configurations. All high-level operations start here.
+- `base_system/` - Contains f1tenth_system (hardware drivers, VESC interface) and f110-simulator
+- `f110_utils/` - Utility nodes and tools (Bayesian optimization, lap analysis, map editing, etc.)
 
-**state_estimation**: Localization and velocity estimation
-- Supports both Cartographer SLAM (default) and SynPF particle filter
-- EKF-based sensor fusion using `robot_localization` package
-- Frenet frame conversion for planning/control
+**Perception-Planning-Control Pipeline:**
+1. **State Estimation** (`state_estimation/`)
+   - Cartographer SLAM or SynPF particle filter for localization
+   - EKF sensor fusion from `robot_localization` package
+   - Fuses VESC odometry, IMU, and localization data
 
-**perception**: Obstacle detection and tracking
-- `abd_tracker`: Adaptive breakpoint detector with Kalman filtering
-- `TinyCenterSpeed`: ML-based opponent detection
+2. **Perception** (`perception/`)
+   - `abd_tracker` - Adversarial Blend Detector for opponent tracking
+   - `TinyCenterSpeed` - ML-based perception for cone detection
 
-**planner**: Global and local trajectory planning
-- Global: `gb_optimizer` (minimum curvature trajectory generation)
-- Local: `spliner`, `frenet-planner`, `graph_based_planner`, `predictive-spliner`
-- Planners handle overtaking and collision avoidance
+3. **Planning** (`planner/`)
+   - `frenet-planner` - Frenet frame based overtaking
+   - `graph_based_planner` - Graph search overtaking
+   - `spliner` - Spline-based overtaking
+   - `predictive-spliner` - Spatiotemporal overtaking with opponent trajectory prediction
+   - `gb_optimizer` - Global trajectory optimization
 
-**controller**: Low-level trajectory tracking
-- Pure Pursuit (PP)
-- Model and Acceleration-based Pursuit (MAP) - requires lookup table
-- Kinematic MPC (KMPC)
-- Single Track MPC (STMPC) - includes tire dynamics
+4. **Control** (`controller/`)
+   - `controller_manager.py` - Main control node that coordinates controllers
+   - `pp/` - Pure Pursuit controller
+   - `map/` - Model and Acceleration-based Pursuit controller
+   - `mpc/` - Model Predictive Control (kinematic KMPC and single-track STMPC versions)
+   - `ftg/` - Follow the Gap controller
 
-**state_machine**: Behavioral state management
-- Coordinates time trials vs head-to-head behaviors
-- Manages state transitions (GBTRACK, OVERTAKE, FTG)
-- Generates local waypoints for controller based on current state
+5. **State Machine** (`state_machine/`)
+   - Manages racing states (ready, driving, emergency stop, etc.)
+   - `state_indicator/` - Visual state feedback
 
-**stack_master**: Main launch interface
-- Central launchfiles for all operational modes
-- Configuration files per racecar (`config/<racecar_version>/`)
-- Checklists for procedures in `checklists/`
+### Configuration Management
 
-**f110_utils**: Shared utilities, messages, and tools
-- Custom message definitions (`f110_msgs`)
-- Frenet coordinate conversion library and server
-- Trajectory publishers, lap analyzers, parameter optimizers
-- Pit connection scripts
+**Car-Specific Configurations** (`stack_master/config/<RACECAR_VERSION>/`):
+- Each physical car has its own configuration directory (e.g., NUC2, JET1)
+- Contains VESC parameters, sensor configs, static transforms, controller tuning
+- `DEFAULT/` contains shared baseline parameters
 
-**sensors**: VESC motor controller interface
+**Map Configurations** (`stack_master/maps/<MAP_NAME>/`):
+- Each map has YAML metadata, PGM occupancy grid, speed scaling, and overtaking sectors
+- Maps are created via the mapping procedure and stored here
 
-**system_identification**: Vehicle modeling and calibration
-- Data collection automation (`id_controller`)
-- Parameter estimation and lookup table generation (`id_analyser`)
-- Steering lookup tables (`steering_lookup`)
+**Global Parameters** (used throughout nodes):
+- `/sim` - Running in simulation (false means real car)
+- `/measure` - Enable additional measurements/logging
+- `/from_bag` - Running from rosbag playback
+- `/racecar_version` - Which car configuration to use (NUC2, JET1, etc.)
 
-### Key Architectural Patterns
+### Key Data Flow
 
-**Frenet Frame**: The system extensively uses Frenet coordinates (along-track distance s, lateral offset d) for planning and control. The `frenet_conversion` library and server handle coordinate transformations.
+1. **Localization**: LiDAR scan → SLAM/PF → pose → EKF fusion with VESC odom + IMU → `/car_state/odom`
+2. **Planning**: Global raceline + obstacles → overtaking planner → `/local_waypoints`
+3. **Control**: `/local_waypoints` + `/car_state/odom` → controller → `/vesc/high_level/ackermann_cmd_mux/input/nav_1`
 
-**Sector-based Trajectory Scaling**: Racelines are divided into sectors, each with scaling factors for velocity profiles. Sectors are defined during mapping and stored per map.
+### Controller Selection
 
-**State Machine Flow**: The state machine coordinates planner/controller behavior:
-- GBTRACK: Follow global raceline
-- OVERTAKE: Execute local planner trajectory
-- FTG: Follow-the-gap for recovery
-- Emergency states for low battery/obstacles
+The `ctrl_algo` argument selects the controller:
+- `PP` - Pure Pursuit (simplest, good baseline)
+- `MAP` - Model and Acceleration-based Pursuit (requires `LU_table` steering lookup)
+- `KMPC` - Kinematic MPC (no tire dynamics)
+- `STMPC` - Single Track MPC (with Pacejka tire model, most advanced)
 
-**Lookup Tables (MAP Controller)**: Pre-computed steering angles as a function of speed and desired acceleration, generated via system identification. Tables are racecar and track-surface specific (e.g., `NUC2_hangar_pacejka`).
+### Planner Selection
 
-**Configuration per Racecar**: Each physical car has unique parameters in `stack_master/config/<racecar_version>/` for transforms, VESC tuning, sensor calibration.
+The `planner` argument selects the overtaking planner:
+- `frenet` - Frenet-based planner
+- `graph_based` - Graph search-based
+- `spliner` - Reactive spline-based
+- `predictive_spliner` - Spatiotemporal prediction-based
+
+### Localization Modes
+
+Specify `localization:=<slam|pf>` in base_system.launch:
+- `slam` (default) - More accurate, faster, smoother. Works well in structured environments.
+- `pf` - Better on slippery floors, poorly reflecting environments, or long featureless straights.
 
 ## Development Guidelines
 
-### ROS Nodes
-- Use global parameters for context: `/sim`, `/measure`, `/from_bag`, `/racecar_version`
-- Use ROS logging functions with INFO as default level
-- Add type hints in Python for non-obvious parameters/returns
-- Add docstrings (use Python Docstring Generator extension)
+### Code Style
 
-### Launch Files
+**Python:**
+- Add docstrings (use Python Docstring Generator extension for VS Code)
+- Use type hints for non-obvious function parameters and returns
+- Remove all commented code, unused imports, and variables
+- Add TODO comments for code smells/hard-coded values
+
+**ROS Nodes:**
+- Use global context parameters (`/sim`, `/measure`, `/from_bag`, `/racecar_version`) instead of hard-coding
+- Use ROS logging functions with default level `INFO`
+- Reference example: `planner/spliner/src/spliner_node.py`
+
+**Launch Files:**
 - Document arguments with `doc` attribute
-- Use consistent XML formatting
+- Keep formatting consistent using VS Code XML extension
 
-### README Structure
-Each package/node should have a README with:
+**Package READMEs:**
+Must contain:
 - Description
 - Parameters
 - Input/Output Topic Signature
 
-### Code Quality
-- Add TODO comments for code smells
-- Remove all commented code and unused imports
-- Add comments for non-obvious code or design choices
+Reference example: `planner/spliner/README.md`
 
-## Important Files and Locations
+### System Identification
 
-- Racecar configs: `stack_master/config/<racecar_version>/`
-- Checklists/procedures: `stack_master/checklists/`
-- Maps and trajectories: Generated during mapping, stored per map name
-- Docker setup: `.docker_utils/` and `docker-compose.yaml`
-- Installation scripts: `.devcontainer/.install_utils/`
-- Pit connection: `f110_utils/scripts/pit_starter/`
+The `system_identification/` package provides tools for on-track system identification:
+- `id_controller` - System ID controller
+- `id_analyser` - Analysis tools
+- `steering_lookup` - Steering lookup table generation
+- `on_track_sys_id` - Learning-based on-track system ID
 
-## Common Workflows
+After generating lookup tables, rebuild: `catkin build steering_lookup` and re-source workspace.
 
-**After modifying sector configuration**: The mapping procedure rebuilds `sector_tuner` and `overtaking_sector_tuner` packages. You must re-source the workspace afterward.
+### Checklists and Procedures
 
-**Connecting from pit laptop**:
+Detailed operational procedures are in `stack_master/checklists/`:
+- `TimeTrials.md` - Time trial setup and execution
+- `HeadToHead.md` - Head-to-head racing setup
+- `Mapping.md` - Creating new maps
+
+### Connecting to the Car (Pit Setup)
+
 ```bash
-cd <race_stack>/f110_utils/scripts/pit_starter
+cd <race_stack_folder>/f110_utils/scripts/pit_starter
 source pit_starter.sh <YOUR_ZEROTIER_IP> <NUC3|NUC4> rviz
 ```
 
-**Testing controller changes**: Use simulation first with `sim:=true`, then test on real car in safe environment.
+### Installation Locations
 
-**Adding a new racecar**: Create new config directory in `stack_master/config/<new_car_name>/` with transforms, VESC parameters, and sensor calibration.
+**Dependencies:**
+- Ubuntu packages: `.devcontainer/.install_utils/linux_req_car.txt` (car), `linux_req_sim.txt` (sim)
+- Python packages: `.devcontainer/.install_utils/requirements.txt`
+- Custom packages: `f110_utils/libs/ccma`, `planner/graph_based_planner/src/GraphBasedPlanner`
+
+**Modified Submodules:**
+- Cartographer SLAM (install via `.devcontainer/.install_utils/cartographer_setup.sh`)
+- SynPF particle filter (install via `.devcontainer/.install_utils/pf_setup.sh`)
+
+## Important Notes
+
+- The repository has a ROS2 version in other branches
+- Cache directories for Docker are at `../race_stack_cache/noetic/{build,devel,logs}` (outside repo)
+- After mapping, sector tuning triggers automatic package rebuilds - re-source workspace afterwards
+- Main branch is `main`
+- See INSTALLATION.md for detailed setup, TROUBLESHOOTING.md for common issues
+- The stack is published in Journal of Field Robotics with additional publications linked in README.md
