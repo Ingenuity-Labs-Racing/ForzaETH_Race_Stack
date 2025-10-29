@@ -12,12 +12,12 @@ echo $1
 	if [ $2 == 'NUC2' ]
 	then 
 		echo 'Exporting ROS params to access NUC2'
-		export ROS_MASTER_URI=http://192.168.2.20:11311
+		export ROS_MASTER_URI=http://<TODO:SET_YOUR_CAR_FIXED_IP_HERE>:11311
 		echo 'Exported your stuff...'
 	elif [ $2 == 'ING' ]
 	then 
 		echo 'Exporting ROS params to access NUCX'
-		export ROS_MASTER_URI=http://<another fixed IP>:11311
+		export ROS_MASTER_URI=http://192.168.2.20:11311
 		echo 'Exported your stuff...'
 	else
 		echo 'No valid car arg. Valid car args are NUC2 - NUC5.'
