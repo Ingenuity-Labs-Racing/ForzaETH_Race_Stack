@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Script to launch the main docker instance for the pblf110 car
-IMAGE=race_stack_sim_x86
+IMAGE=race_stack_jet
 
 docker run --tty \
     --interactive \

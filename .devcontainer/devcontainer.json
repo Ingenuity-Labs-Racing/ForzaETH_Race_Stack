@@ -3,7 +3,7 @@
     "containerUser": "${localEnv:USER}",
     "privileged": true,
     "initializeCommand": "/bin/bash -c 'source ${localWorkspaceFolder}/.devcontainer/.install_utils/xauth_setup.sh'",
-    "image": "race_stack_sim_x86", // change name in case you are working on arm/on the car
+    "image": "race_stack_jet", // change name in case you are working on arm/on the car
     "workspaceFolder": "/home/${localEnv:USER}/catkin_ws",
     "workspaceMount": "source=${localWorkspaceFolder},target=/home/${localEnv:USER}/catkin_ws/src/race_stack,type=bind",
     "customizations": {
