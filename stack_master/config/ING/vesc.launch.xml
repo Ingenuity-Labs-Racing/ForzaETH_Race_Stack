@@ -17,5 +17,5 @@
   <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" output="screen" />
   <node pkg="vesc_ackermann" type="vesc_to_odom_node" name="vesc_to_odom" />
   <node name="throttle_interpolator" pkg="ackermann_cmd_mux" type="throttle_interpolator.py" />
-
+  <node name="dynamic_traction_tuner_node" pkg="ackermann_cmd_mux" type="dynamic_traction_server.py" />
 </launch>

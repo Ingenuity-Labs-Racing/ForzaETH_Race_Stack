@@ -16,6 +16,8 @@ Then launch the mapping procedure with the following launch file:
 roslaunch stack_master mapping.launch map_name:=<map name of choice> racecar_version:=<NUCX>
 ```
 
+roslaunch stack_master mapping.launch map_name:=alpha_map racecar_version:=ING
+
   - `<map name of choice>` can be any name with no white space. Conventionally we use the location name (eg, 'hangar', 'ETZ', 'icra') followed by the day of the month followed by an incremental version number. For instance, `hangar_12_v0`.
   - `<NUCX>` depends on which car you are using. NUC2, JET1, etc.
 
