@@ -20,6 +20,9 @@ make shared_library
 # Install Python interface
 pip install $ACADOS_ROOT/interfaces/acados_template
 
+# Install compatible tera renderer (v0.0.34 required for older GLIBC systems)
+python3 -c "from acados_template import get_tera; get_tera(tera_version='0.0.34', force_download=True)"
+
 # Add environment variables to .bashrc and/or .zshrc
 echo "export ACADOS_SOURCE_DIR=$ACADOS_ROOT" >> ~/.bashrc
 echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$ACADOS_ROOT/lib" >> ~/.bashrc
