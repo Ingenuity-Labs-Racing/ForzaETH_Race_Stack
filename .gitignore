@@ -52,6 +52,7 @@ stack_master/maps/hangar_1905_v0/ot_sectors.yaml
 !stack_master/maps/crown
 !stack_master/maps/Victoria
 !stack_master/maps/Victoria2
+!stack_master/maps/May22_Victoria3
 
 #todo: what's up with maps -> external map folder?
 .vscode/build

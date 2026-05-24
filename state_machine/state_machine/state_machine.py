@@ -554,7 +554,7 @@ class StateMachine(Node):
     # MAIN LOOP #
     #############
     def main_loop_callback(self):
-        self.get_logger().debug(f"Current state: {self.state}")
+        # self.get_logger().debug(f"Current state: {self.state}")
         if self.state != self.prev_state:
             self.get_logger().debug(f"!!!STATE CHANGE DETECTED {self.prev_state} to {self.state}")
             self.prev_state = self.state
