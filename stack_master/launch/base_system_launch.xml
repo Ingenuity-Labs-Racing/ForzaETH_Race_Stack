@@ -83,7 +83,7 @@
 
   <!-- launch bag recorder -->
   <arg name="bag_path" default="bags"/>
-  <arg name="record_bag" default="true"/>
+  <arg name="record_bag" default="false"/>
   <arg name="node_output" default="log"/>
 
   <executable
