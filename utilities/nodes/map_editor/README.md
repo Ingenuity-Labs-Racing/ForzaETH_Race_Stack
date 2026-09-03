@@ -56,3 +56,45 @@ Now that you have a perfectly closed loop in your `MAP_NAME.png`, we feed it bac
 
 
 You are now fully configured and ready to race! Verify by running the base system **on the car** with the new map.
+
+# Mapping from a Bag
+
+## Step 1: Generate the bag
+
+1. First, you must attach a second container, and cd into the data folder
+    ```
+    cd data
+    ```
+
+2. Create a folder and cd into it
+    ```
+    mkdir <folder_name> && cd <folder_name>
+    ```
+3. Start recording the bag
+    ```
+    ros2 bag record -a
+    ```
+
+Then, you must drive the car around the physical space to gather the raw LiDAR scan data.
+
+4. **In the main container**, launch the Map Editor in **Mapping Mode** (`map_editor_mapping:=True`). This explicitly bypasses the strict "1-lap completion" algorithmic check, letting you save the grid whenever you feel the coverage is good enough.
+    ```bash
+    ros2 launch map_editor map_editor_launch.xml map_name:=MAP_NAME map_editor_mapping:=True racecar_version:=NUCNUC
+    ```
+5. After you gathered enough data, ```ctrl+c``` to both terminals (bag and launch file)
+
+Now, it's time to create the map
+
+6. **In the main container**, launch the Map Editor in **Mapping Mode** (`map_editor_mapping:=True`), and add the flag ```use_sim_time:=True```.
+    ```bash
+    ros2 launch map_editor map_editor_launch.xml map_name:=MAP_NAME map_editor_mapping:=True racecar_version:=NUCNUC use_sim_time:=True
+    ```
+7. In the terminal, in the the folder where you recorded the bag, play the bag with the clock flag:
+    ```
+    ros2 bag play rosbag2_<your_bag_date> --clock
+    ```
+8. After you visualize the map on the matplitlib window (which might take a few minutes to update), save the it and close the window. This will save a baseline map (png, yaml) and pbstream file **on the Car** at the directory `race_stack/stack_master/maps/MAP_NAME/`.
+
+9. Now, you can proceed with the same steps as regular mapping
+
+
