@@ -5,9 +5,11 @@ Visualization Manager:
   Class: ""
   Displays:
     - Class: rviz_default_plugins/Grid
-      Name: Grid
-      Enabled: true
+      Name: Grid (1 m)
+      Enabled: false
       Reference Frame: <Fixed Frame>
+      Plane Cell Count: 30
+      Color: 90; 90; 90
     - Class: rviz_default_plugins/Map
       Name: Map (SLAM)
       Enabled: true
@@ -17,10 +19,10 @@ Visualization Manager:
         Durability Policy: Transient Local
         Reliability Policy: Reliable
         History Policy: Keep Last
-      Alpha: 0.7
+      Alpha: 1
       Color Scheme: map
     - Class: rviz_default_plugins/LaserScan
-      Name: Scan
+      Name: Lidar scan
       Enabled: true
       Topic:
         Value: /scan
@@ -28,30 +30,61 @@ Visualization Manager:
         Durability Policy: Volatile
         Reliability Policy: Best Effort
         History Policy: Keep Last
-      Size (m): 0.03
-      Style: Points
+      Size (m): 0.06
+      Style: Flat Squares
       Color Transformer: FlatColor
-      Color: 255; 50; 50
-    - Class: rviz_default_plugins/TF
-      Name: TF
-      Enabled: true
-      Show Names: true
-      Marker Scale: 0.5
+      Color: 255; 40; 40
+      Decay Time: 0
     - Class: rviz_default_plugins/Odometry
-      Name: Wheel odometry
-      Enabled: false
+      Name: Car (true pose)
+      Enabled: true
       Topic:
-        Value: /odom
+        Value: /ground_truth
         Depth: 5
         Durability Policy: Volatile
         Reliability Policy: Reliable
         History Policy: Keep Last
       Keep: 1
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Shape:
+        Value: Arrow
+        Color: 50; 220; 50
+        Alpha: 1
+        Shaft Length: 0.5
+        Shaft Radius: 0.08
+        Head Length: 0.25
+        Head Radius: 0.18
+      Covariance:
+        Value: false
+    - Class: rviz_default_plugins/Odometry
+      Name: Driven path
+      Enabled: true
+      Topic:
+        Value: /ground_truth
+        Depth: 5
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+      Keep: 300
+      Position Tolerance: 0.25
+      Angle Tolerance: 3
+      Shape:
+        Value: Axes
+        Axes Length: 0.08
+        Axes Radius: 0.02
+      Covariance:
+        Value: false
+    - Class: rviz_default_plugins/TF
+      Name: TF frames
+      Enabled: false
+      Show Names: true
+      Marker Scale: 0.6
   Enabled: true
   Global Options:
     Fixed Frame: map
-    Background Color: 48; 48; 48
-    Frame Rate: 15
+    Background Color: 30; 30; 34
+    Frame Rate: 20
   Tools:
     - Class: rviz_default_plugins/Interact
     - Class: rviz_default_plugins/MoveCamera
@@ -62,9 +95,14 @@ Visualization Manager:
     Current:
       Class: rviz_default_plugins/TopDownOrtho
       Name: Current View
-      Scale: 40
-      X: 0
-      Y: 0
+      Scale: 70
+      X: -0.8
+      Y: 1.5
+      Angle: 0
 Window Geometry:
-  Width: 1200
-  Height: 800
+  Width: 1600
+  Height: 975
+  X: 0
+  Y: 0
+  Displays:
+    collapsed: false

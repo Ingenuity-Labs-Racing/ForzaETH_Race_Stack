@@ -12,6 +12,7 @@ import math
 
 import rclpy
 from nav_msgs.msg import Odometry
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Float64
@@ -45,7 +46,8 @@ class PoseError(Node):
         self.yaw_errs = []
         self.tf_misses = 0
         self.first_gt_logged = False
-        self.csv = open(csv_path, 'w') if csv_path else None
+        # line-buffered, so no samples are lost if the node is killed
+        self.csv = open(csv_path, 'w', buffering=1) if csv_path else None
         if self.csv:
             self.csv.write('t,gt_x,gt_y,gt_yaw,slam_x,slam_y,slam_yaw,pos_err,yaw_err\n')
 
@@ -62,15 +64,13 @@ class PoseError(Node):
         gy = -math.sin(self.oyaw) * dx + math.cos(self.oyaw) * dy
         gyaw = wrap(wyaw - self.oyaw)
 
-        # SLAM estimate at the same timestamp, else the latest one
+        # SLAM estimate at the same timestamp. Samples without one are skipped: comparing
+        # against an older SLAM pose would add fake error whenever the car moves.
         try:
             tf = self.tf_buffer.lookup_transform('map', 'base_link', Time.from_msg(msg.header.stamp))
         except TransformException:
             self.tf_misses += 1
-            try:
-                tf = self.tf_buffer.lookup_transform('map', 'base_link', Time())
-            except TransformException:
-                return
+            return
         sx, sy = tf.transform.translation.x, tf.transform.translation.y
         syaw = yaw_from_quat(tf.transform.rotation)
 
@@ -92,7 +92,7 @@ class PoseError(Node):
         rmse = math.sqrt(sum(e * e for e in self.pos_errs) / n)
         return (f'n={n} | position: now {self.pos_errs[-1]:.3f} m, RMSE {rmse:.3f} m, max {max(self.pos_errs):.3f} m'
                 f' | yaw: now {math.degrees(self.yaw_errs[-1]):.2f} deg, max {math.degrees(max(self.yaw_errs)):.2f} deg'
-                f' | TF lookups not time-matched {self.tf_misses}')
+                f' | skipped (no SLAM pose at that time) {self.tf_misses}')
 
     def log_summary(self):
         self.get_logger().info(self.summary())
@@ -103,7 +103,7 @@ def main():
     node = PoseError()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     print('FINAL: ' + node.summary())
     if node.csv:

@@ -1,0 +1,73 @@
+# REFERENCE MAP (simulator only): the scan matcher stays on (localization needs the pose
+# graph it builds) but may only move a scan ~1 cm / ~0.2 deg from the (perfect) Gazebo
+# odometry, and loop closure is off. Gives a near-exact map for testing localization on
+# its own. On a real car use mapping.yaml - real odometry drifts.
+slam_toolbox:
+  ros__parameters:
+    # Solver
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # Frames and topics
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: mapping
+
+    # General
+    debug_logging: false
+    throttle_scans: 1
+    transform_publish_period: 0.02  # [s] map->odom publish rate
+    map_update_interval: 2.0        # [s] how often /map is republished
+    resolution: 0.05
+    min_laser_range: 0.1
+    max_laser_range: 20.0
+    minimum_time_interval: 0.1
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+    enable_interactive_mode: true
+    use_map_saver: true
+
+    # Scan matching - a scan is only added once the robot moved this far
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.3
+    minimum_travel_heading: 0.3
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+
+    # Loop closure
+    do_loop_closing: false
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # Correlation (local scan matching search window)
+    correlation_search_space_dimension: 0.04
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # Correlation (loop closure search window)
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # Scan matcher penalties
+    distance_variance_penalty: 0.05
+    angle_variance_penalty: 0.05
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.0105
+    coarse_angle_resolution: 0.00349
+    minimum_angle_penalty: 0.05
+    minimum_distance_penalty: 0.05
+    use_response_expansion: true

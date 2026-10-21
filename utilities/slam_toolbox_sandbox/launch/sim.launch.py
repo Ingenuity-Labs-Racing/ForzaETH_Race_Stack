@@ -17,6 +17,7 @@ def launch_setup(context):
     world = os.path.join(pkg, 'worlds', LaunchConfiguration('world').perform(context) + '.sdf')
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
     rviz = LaunchConfiguration('rviz').perform(context).lower() == 'true'
+    foxglove = LaunchConfiguration('foxglove').perform(context).lower() == 'true'
 
     # -r: start running immediately, -s: server only (no Gazebo window)
     gz_cmd = ['ign', 'gazebo', '-r', '-v', '3', world]
@@ -44,6 +45,7 @@ def launch_setup(context):
             '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
             '/scan@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
             '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+            '/wheel_odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
             '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
             '/model/car/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
             '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
@@ -59,7 +61,21 @@ def launch_setup(context):
         parameters=[{'use_sim_time': True}],
     )
 
-    actions = [gazebo, TimerAction(period=3.0, actions=[spawn]), bridge, laser_tf]
+    # Ground truth is in the Gazebo world frame. The odometry starts in world coordinates,
+    # so the SLAM map frame coincides with it - this links the two for visualization.
+    world_tf = Node(
+        package='tf2_ros', executable='static_transform_publisher',
+        arguments=['--frame-id', 'world', '--child-frame-id', 'map'],
+        parameters=[{'use_sim_time': True}],
+    )
+
+    actions = [gazebo, TimerAction(period=3.0, actions=[spawn]), bridge, laser_tf, world_tf]
+    if foxglove:
+        # Streams all topics to the Foxglove app on the host: ws://localhost:8765
+        actions.append(Node(
+            package='foxglove_bridge', executable='foxglove_bridge', output='screen',
+            parameters=[{'port': 8765, 'address': '0.0.0.0', 'use_sim_time': True}],
+        ))
     if rviz:
         actions.append(Node(
             package='rviz2', executable='rviz2', output='screen',
@@ -76,6 +92,7 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='-2.5328'),
         DeclareLaunchArgument('yaw', default_value='-0.0638'),
         DeclareLaunchArgument('gui', default_value='false', description='open the Gazebo window (needs working OpenGL)'),
-        DeclareLaunchArgument('rviz', default_value='true'),
+        DeclareLaunchArgument('rviz', default_value='false', description='RViz in the VNC display (fallback for Foxglove)'),
+        DeclareLaunchArgument('foxglove', default_value='true', description='bridge for the Foxglove app: ws://localhost:8765'),
         OpaqueFunction(function=launch_setup),
     ])

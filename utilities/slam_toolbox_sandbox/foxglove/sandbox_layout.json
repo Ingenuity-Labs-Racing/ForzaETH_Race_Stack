@@ -1,0 +1,94 @@
+{
+  "configById": {
+    "3D!sandbox": {
+      "cameraState": {
+        "perspective": false,
+        "distance": 22,
+        "phi": 0,
+        "thetaOffset": 90,
+        "targetOffset": [-0.8, 1.5, 0],
+        "target": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-none",
+      "followTf": "map",
+      "scene": {
+        "transforms": { "labelSize": 0.15, "axisScale": 0.6 },
+        "backgroundColor": "#1e1e22ff"
+      },
+      "transforms": {},
+      "topics": {
+        "/map": { "visible": true, "colorMode": "map", "alpha": 1 },
+        "/scan": { "visible": true, "pointSize": 5, "pointShape": "circle", "colorMode": "flat", "flatColor": "#ff3b3bff" },
+        "/ground_truth": { "visible": true, "type": "arrow", "arrowScale": [0.7, 0.18, 0.18], "color": "#3ddc84ff" },
+        "/odom": { "visible": false }
+      },
+      "layers": {
+        "grid": {
+          "visible": false,
+          "layerId": "foxglove.Grid",
+          "frameId": "map",
+          "size": 30,
+          "divisions": 30,
+          "color": "#5a5a5aff"
+        }
+      },
+      "publish": {
+        "type": "pose_estimate",
+        "poseTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26
+      },
+      "imageMode": {}
+    },
+    "Plot!poserror": {
+      "title": "SLAM position error [m]",
+      "paths": [
+        { "value": "/slam_eval/position_error.data", "enabled": true, "timestampMethod": "receiveTime", "label": "position error [m]" }
+      ],
+      "showLegend": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!yawerror": {
+      "title": "SLAM heading error [rad]",
+      "paths": [
+        { "value": "/slam_eval/yaw_error.data", "enabled": true, "timestampMethod": "receiveTime", "label": "heading error [rad]" }
+      ],
+      "showLegend": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Teleop!drive": {
+      "topic": "/cmd_vel",
+      "publishRate": 10,
+      "upButton": { "field": "linear-x", "value": 0.5 },
+      "downButton": { "field": "linear-x", "value": -0.3 },
+      "leftButton": { "field": "angular-z", "value": 0.8 },
+      "rightButton": { "field": "angular-z", "value": -0.8 }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": { "speed": 1 },
+  "layout": {
+    "direction": "row",
+    "first": "3D!sandbox",
+    "second": {
+      "direction": "column",
+      "first": "Plot!poserror",
+      "second": {
+        "direction": "column",
+        "first": "Plot!yawerror",
+        "second": "Teleop!drive",
+        "splitPercentage": 50
+      },
+      "splitPercentage": 33
+    },
+    "splitPercentage": 70
+  }
+}

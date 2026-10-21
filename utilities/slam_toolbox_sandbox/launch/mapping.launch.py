@@ -1,5 +1,8 @@
 """
-Runs SLAM Toolbox in mapping mode. Start sim.launch.py first.
+Runs SLAM Toolbox in mapping mode, plus the ground-truth error node. Start sim.launch.py first.
+
+The odometry starts in Gazebo world coordinates, so the SLAM map frame is the world
+frame and the error against ground truth is meaningful while mapping too.
 """
 import os
 
@@ -17,5 +20,9 @@ def generate_launch_description():
         Node(
             package='slam_toolbox', executable='async_slam_toolbox_node', name='slam_toolbox', output='screen',
             parameters=[LaunchConfiguration('params'), {'use_sim_time': True}],
+        ),
+        Node(
+            package='slam_toolbox_sandbox', executable='pose_error', output='screen',
+            parameters=[{'use_sim_time': True}],
         ),
     ])

@@ -66,6 +66,12 @@ ros2 launch slam_toolbox_sandbox mapping.launch.py
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
+Or let the autopilot drive (follows the Victoria centerline using ground truth; backs up if stuck):
+```bash
+ros2 run slam_toolbox_sandbox autodrive --ros-args -p speed:=0.8 -p laps:=1.1
+```
+`laps:=0` drives until Ctrl+C. Don't use the keyboard or Foxglove drive pad at the same time.
+
 Drive one full lap slowly (~0.5–1 m/s) and a few metres past the start, so the loop closes.
 Watch the map in RViz: when you get back to the start, the walls should snap into place with no doubled walls.
 

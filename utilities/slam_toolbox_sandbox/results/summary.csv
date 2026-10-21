@@ -1,0 +1,4 @@
+date,tag,commit,params,map,speed,run,laps,lap_done,samples,pos_rmse,pos_p95,pos_max,yaw_rmse_deg,yaw_max_deg
+2026-10-07,baseline,f86372d+dirty,default,victoria_ref,0.8,1,1,true,1778,1.000,1.800,2.123,8.35,24.93
+2026-10-07,baseline,f86372d+dirty,default,victoria_ref,1.5,1,1,true,1219,0.238,0.702,1.097,4.67,19.03
+2026-10-07,three_laps,f86372d+dirty,default,victoria_ref,0.8,1,3,true,3844,0.502,1.154,1.631,5.13,19.01

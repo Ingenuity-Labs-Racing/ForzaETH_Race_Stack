@@ -2,9 +2,11 @@
 Runs SLAM Toolbox in localization mode on a saved map, plus the ground-truth error node.
 Start a fresh sim.launch.py first, so the car is at its spawn pose.
 
-Frames: the SLAM map frame is wherever the car was when the map was recorded
-(map_origin_*), in Gazebo world coordinates. The car's current spawn pose
-(x, y, yaw) is converted into that map frame to give SLAM Toolbox its start pose.
+Frames: the odometry starts in Gazebo world coordinates, so a map recorded in this
+sandbox has map frame = world frame = Victoria map frame, and map_origin_* stays 0.
+(Only if odometry ever starts at zero again does map_origin_* need to be the spawn
+pose used while mapping.) The car's spawn pose (x, y, yaw) is converted into the
+map frame to give SLAM Toolbox its start pose.
 """
 import math
 import os
@@ -63,9 +65,9 @@ def generate_launch_description():
         DeclareLaunchArgument('x', default_value=VICTORIA_START[0], description='spawn pose used in sim.launch.py'),
         DeclareLaunchArgument('y', default_value=VICTORIA_START[1]),
         DeclareLaunchArgument('yaw', default_value=VICTORIA_START[2]),
-        DeclareLaunchArgument('map_origin_x', default_value=VICTORIA_START[0], description='spawn pose used while mapping'),
-        DeclareLaunchArgument('map_origin_y', default_value=VICTORIA_START[1]),
-        DeclareLaunchArgument('map_origin_yaw', default_value=VICTORIA_START[2]),
+        DeclareLaunchArgument('map_origin_x', default_value='0.0', description='world pose of the SLAM map frame'),
+        DeclareLaunchArgument('map_origin_y', default_value='0.0'),
+        DeclareLaunchArgument('map_origin_yaw', default_value='0.0'),
         DeclareLaunchArgument('csv', default_value='', description='optional path to log errors as CSV'),
         OpaqueFunction(function=launch_setup),
     ])

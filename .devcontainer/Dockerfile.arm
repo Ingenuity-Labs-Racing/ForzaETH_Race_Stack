@@ -29,6 +29,12 @@ ADD .install_utils/python_req.txt /tmp/.install_utils/python_req.txt
 RUN pip3 install -r /tmp/.install_utils/python_req.txt &&\
     pip3 install quadprog~=0.1.11
 
+# Gazebo + SLAM Toolbox (utilities/slam_toolbox_sandbox), Foxglove bridge for viewing
+# topics in the Foxglove app on the host, and a virtual display with VNC as a fallback
+# for hosts where X forwarding has no usable OpenGL (e.g. macOS + XQuartz)
+RUN apt-get install -y ros-humble-ros-gz ros-humble-slam-toolbox ros-humble-teleop-twist-keyboard \
+    ros-humble-foxglove-bridge mesa-utils xvfb x11vnc fluxbox xterm
+
 
 # ********************************************************
 # * Anything else you want to do like clean up goes here *
