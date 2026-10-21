@@ -3,6 +3,7 @@
     <arg name="racecar_version" default="NUCNUC" /> <!-- NUCX -->
     <arg name="map_name" description="Name of the map to be created" />
     <arg name="sim" default="False" />
+    <arg name="autodrive" default="False" /> <!-- True to map in the AutoDRIVE simulator instead of on the car -->
     <let name="sensors_config" value="$(find-pkg-share stack_master)/config/sensors.yaml" />
     <let name="mux_config" value="$(find-pkg-share stack_master)/config/mux.yaml" />
     <let name="joy_config"
@@ -25,10 +26,15 @@
         </node>
 
         <!-- launch teleop -->
-        <include file="$(find-pkg-share f1tenth_stack)/launch/bringup_launch.py">
+        <include file="$(find-pkg-share f1tenth_stack)/launch/bringup_launch.py" unless="$(var autodrive)">
             <arg name="joy_config" value="$(var joy_config)" />
             <arg name="vesc_config" value="$(var vesc_config)" />
             <arg name="sensors_config" value="$(var sensors_config)" />
+            <arg name="mux_config" value="$(var mux_config)" />
+        </include>
+        <!-- AutoDRIVE simulator instead of the car hardware -->
+        <include file="$(find-pkg-share autodrive_adapter)/launch/autodrive_bringup_launch.py" if="$(var autodrive)">
+            <arg name="joy_config" value="$(var joy_config)" />
             <arg name="mux_config" value="$(var mux_config)" />
         </include>
 

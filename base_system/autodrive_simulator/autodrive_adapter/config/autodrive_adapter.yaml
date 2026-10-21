@@ -1,0 +1,8 @@
+autodrive_adapter:
+  ros__parameters:
+    # throttle command [-1, 1] = speed_to_throttle_gain * speed (m/s)
+    # measured: steady-state speed = 24.9 m/s * throttle (2026-iros practice track)
+    speed_to_throttle_gain: 0.0402
+    # steering command [-1, 1] = steering_angle_to_command_gain * steering angle (rad)
+    # measured: steering command 1.0 = 0.5236 rad
+    steering_angle_to_command_gain: 1.9099

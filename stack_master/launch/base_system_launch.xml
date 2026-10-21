@@ -3,6 +3,7 @@
   <arg name="racecar_version" default="NUCNUC" description="'SIM' / 'NUCx'" />
   <arg name="map_name" description="Map name in stack_master/maps" />
   <arg name="sim" default="False" description="True/False if you want to run simulation" />
+  <arg name="autodrive" default="False" description="True to run on the AutoDRIVE simulator instead of the car hardware (keep sim:=False)" />
   <arg name="loc_algorithm" default="slam" description="'slam' / 'synpf' to switch localisation algorithm" />
   <arg name="use_ekf2" default="False" description="True to enable EKF2 global fusion (Cartographer pose + EKF1 velocity)" />
   <arg name="use_pose_graph_fix" default="False" description="True to use f110_2d_loc_pgfix.lua with stronger odometry weights and more loop closures" />
@@ -32,10 +33,15 @@
   <!-- launch real car system -->
   <group unless="$(var sim)">
     <!-- launch teleop -->
-    <include file="$(find-pkg-share f1tenth_stack)/launch/bringup_launch.py">
+    <include file="$(find-pkg-share f1tenth_stack)/launch/bringup_launch.py" unless="$(var autodrive)">
       <arg name="joy_config" value="$(var joy_config)" />
       <arg name="vesc_config" value="$(var vesc_config)" />
       <arg name="sensors_config" value="$(var sensors_config)" />
+      <arg name="mux_config" value="$(var mux_config)" />
+    </include>
+    <!-- AutoDRIVE simulator instead of the car hardware -->
+    <include file="$(find-pkg-share autodrive_adapter)/launch/autodrive_bringup_launch.py" if="$(var autodrive)">
+      <arg name="joy_config" value="$(var joy_config)" />
       <arg name="mux_config" value="$(var mux_config)" />
     </include>
 
