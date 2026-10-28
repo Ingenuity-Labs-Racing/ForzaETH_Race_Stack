@@ -98,10 +98,11 @@ To launch an opponent in simulation for testing, refer to  [`opponent_publisher`
 The stack can also run on the [AutoDRIVE RoboRacer simulator](https://github.com/AutoDRIVE-Ecosystem/AutoDRIVE-RoboRacer-Sim-Racing) with the real car pipeline (NUCNUC config, Cartographer and EKF). AutoDRIVE only replaces the car hardware, see [`base_system/autodrive_simulator`](./../base_system/autodrive_simulator/README.md).
 
 1. One-time setup inside the container: `~/ws/src/race_stack/.install_utils/autodrive_setup.sh`, then build.
-2. Launch the stack with `autodrive:=true` (keep `sim:=false`). This also starts the AutoDRIVE bridge on port 4567:
+2. Launch the stack with `autodrive:=true` (keep `sim:=false`) and a map from `stack_master/maps/`. This also starts the AutoDRIVE bridge on port 4567:
    ```shell
-   ros2 launch stack_master mapping_launch.xml autodrive:=true map_name:=<map name>
    ros2 launch stack_master base_system_launch.xml autodrive:=true map_name:=<map name>
    ```
 3. Start the simulator, set the vehicle to `Autonomous` and connect to `127.0.0.1:4567`.
 4. Drive with the joystick (same as on the car), or with `ros2 launch stack_master time_trials_launch.xml` / `head_to_head_launch.xml` as usual.
+
+With a simulator that includes the map loader ([`base_system/autodrive_simulator/unity`](./../base_system/autodrive_simulator/unity/README.md)), `base_system_launch.xml` builds the track of `map_name` in the simulator, so the simulator and the stack run on the same map. `base_system_launch.xml` always sends the map. Mapping is not done in the simulator: maps are made on the real car.

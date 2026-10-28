@@ -43,6 +43,7 @@
     <include file="$(find-pkg-share autodrive_adapter)/launch/autodrive_bringup_launch.py" if="$(var autodrive)">
       <arg name="joy_config" value="$(var joy_config)" />
       <arg name="mux_config" value="$(var mux_config)" />
+      <arg name="map_path" value="$(var map_path)" />
     </include>
 
     <!-- launch SE -->

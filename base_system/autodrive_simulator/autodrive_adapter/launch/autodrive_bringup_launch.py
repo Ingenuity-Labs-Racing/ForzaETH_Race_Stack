@@ -35,7 +35,12 @@ def generate_launch_description():
         default_value=mux_config,
         description='Descriptions for ackermann mux configs')
 
-    ld = LaunchDescription([joy_la, mux_la])
+    map_path_la = DeclareLaunchArgument(
+        'map_path',
+        default_value='',
+        description='Stack map directory whose racetrack is built in the simulator, empty keeps the built-in track')
+
+    ld = LaunchDescription([joy_la, mux_la, map_path_la])
 
     joy_node = Node(
         package='joy',
@@ -53,6 +58,7 @@ def generate_launch_description():
         package='autodrive_roboracer',
         executable='autodrive_bridge',
         name='autodrive_bridge',
+        parameters=[{'map_path': LaunchConfiguration('map_path')}],
         emulate_tty=True,
         output='screen',
     )

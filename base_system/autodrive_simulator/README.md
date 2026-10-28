@@ -11,6 +11,8 @@ Vendored copy of the AutoDRIVE devkit (ROS 2 bridge between the simulator and RO
 
 Local changes:
 - `autodrive_roboracer/autodrive_bridge.py`: the `broadcast_transforms(...)` call is commented out. Its `world -> roboracer_1 -> {imu, lidar, ...}` tree would give the `imu` frame a second parent next to the stack's `base_link -> imu`.
+- `autodrive_roboracer/autodrive_bridge.py`: new optional parameter `map_path` (a folder in `stack_master/maps/`). If it is set, the bridge sends the map as an extra `Map` field in the first reply of each connection, see [Map loader](#map-loader).
+- `autodrive_roboracer/map_to_sim.py`: new file, not part of upstream. It turns a stack map into the geometry that the simulator builds.
 
 ## `autodrive_adapter`
 Makes the simulator look like the NUCNUC hardware bringup, so the rest of the stack runs unchanged.
@@ -25,6 +27,13 @@ Makes the simulator look like the NUCNUC hardware bringup, so the rest of the st
 
 The gains were measured on the `2026-iros` practice simulator: steady-state speed = 24.9 m/s * throttle, steering command 1.0 = 0.5236 rad.
 Other measured conventions: no-return LiDAR rays are `inf`, odometry twist is in the car frame, the IMU is car aligned with gravity removed.
+
+## Map loader
+The simulator can build the racetrack of any map in `stack_master/maps/`, so that it runs on the tracks mapped in real life. This needs a simulator built from the AutoDRIVE source with [`unity/MapLoader.cs`](unity/README.md) added; the released simulator ignores the map and keeps its built-in track.
+
+- `autodrive_roboracer/map_to_sim.py` traces the walls from the map image (the free area that contains the start of `global_traj_wpnts_iqp`, the raceline the stack drives) and generates checkpoints along that raceline. The bridge sends the result once per connection, in its first reply.
+- With the stack, `map_name` selects the map: `ros2 launch stack_master base_system_launch.xml autodrive:=true map_name:=<map name>`. `base_system_launch.xml` always sends the map. Maps are made on the real car, not in the simulator, so `mapping_launch.xml` sends none.
+- On its own: `ros2 run autodrive_roboracer autodrive_bridge --ros-args -p map_path:=<path to the map folder>`.
 
 ## Setup
 Inside the race stack container:
