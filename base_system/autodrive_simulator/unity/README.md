@@ -2,7 +2,7 @@
 
 ## Documentation Overview
 
-`MapLoader.cs` builds the racetrack of a race stack map inside the AutoDRIVE simulator at runtime, so that the simulator runs on the tracks in `stack_master/maps/`. See [autodrive_map_loader_plan.md](../../../docs/autodrive_map_loader_plan.md) for the design.
+`MapLoader.cs` builds the racetrack of a race stack map inside the AutoDRIVE simulator at runtime, so that the simulator runs on the tracks in `stack_master/maps/`.
 
 The bridge (`autodrive_roboracer/map_to_sim.py`) traces the walls and generates the checkpoints. It sends the result to the simulator in the first reply of each connection. `MapLoader.cs` then builds, in the `RoboRacer - Sim Racing` scene:
 - round duct walls (one mesh with a collider per outline), on the `Default` layer that the LiDAR hits
@@ -15,14 +15,14 @@ The built-in tracks (the `Infrastructure` object) are hidden. Without a map from
 |---|---|
 | [Setup](#setup) | Add the script to the Unity project. |
 | [Test](#test) | Run it in the editor. |
-| [Limits](#limits) | What has and has not been verified. |
+| [Notes](#notes) | Behaviour to know about. |
 
-The AutoDRIVE Unity project is not part of this repository (see the licensing rules in the plan), so these steps modify your local copy.
+The AutoDRIVE Unity project is not part of this repository (it contains Vehicle Physics Pro, which is licensed per person and may not be redistributed), so these steps modify your local copy of the project.
 
 
 ## Setup
 
-Use the project from Step 1 of the plan (Unity 2022.3.52f1, `C:\dev\AutoDRIVE`).
+Use the AutoDRIVE Unity project: the `AutoDRIVE-Simulator` branch of [Tinker-Twins/AutoDRIVE](https://github.com/Tinker-Twins/AutoDRIVE/tree/AutoDRIVE-Simulator), opened with Unity 2022.3.52f1 (for example cloned to `C:\dev\AutoDRIVE`). Follow its README to open it.
 
 1. **Copy the script.** Copy [MapLoader.cs](MapLoader.cs) to `Assets/Scripts/MapLoader.cs`. With VS Code attached to the container, right-click the file and choose **Download...**.
 2. **Edit `Assets/Scripts/Socket.cs`** in three places:
@@ -59,7 +59,7 @@ Use the project from Step 1 of the plan (Unity 2022.3.52f1, `C:\dev\AutoDRIVE`).
 4. **Add the component.** Open the scene `Assets/Scenes/RoboRacer - Sim Racing.unity` (the single-car scene, not `- H2H`). In the Hierarchy, select **Reset Manager** (an object that is active from the start; the `Socket` object is not) and choose **Add Component → Map Loader**.
    Optionally, to connect to the bridge as soon as the simulator starts, copy [AutoConnect.cs](AutoConnect.cs) to `Assets/Scripts/` as well and add **Auto Connect** to the same object. It does what the **Connect** button does, so the button and its label stay consistent. The driving mode already starts as `Autonomous`.
 5. **Set the material.** In the Inspector, drag `Assets/Materials/Air Duct/Air_Duct_Aluminium.mat` into **Wall Material**. `Air_Duct_Black.mat` and `Air_Duct_White.mat` also work. Without a material the walls render magenta.
-6. Save the scene (Ctrl+S). Wait for the script to compile. Check the Console for red errors and send them if there are any: the script has not been compiled yet.
+6. Save the scene (Ctrl+S) and wait for Unity to compile the scripts. The Console must show no red errors.
 
 
 ## Test
@@ -73,7 +73,7 @@ Use the project from Step 1 of the plan (Unity 2022.3.52f1, `C:\dev\AutoDRIVE`).
    ros2 launch stack_master base_system_launch.xml autodrive:=true map_name:=Victoria
    ```
    The bridge prints `Sending map ... to the simulator on connection`. If the map cannot be read, the bridge stops with an error, so that the stack and the simulator never run on different maps.
-2. In Unity, open the scene and press **Play**. Hover over the top of the Game view, click **Menu**, set **Autonomous** and click **Connect**.
+2. In Unity, open the scene and press **Play**. Hover over the top of the Game view, click **Menu**, set **Autonomous** and click **Connect**. With **Auto Connect**, the simulator connects by itself and starts as Autonomous.
 3. The Console shows `MapLoader: loaded map Victoria`. The built-in track disappears, the duct walls of Victoria appear and the car is at the start of the raceline. If the map cannot be built, the Console shows an error starting with `MapLoader:` (or an exception), and the built-in track stays.
 4. Check, in this order:
    - **Alignment:** `ros2 topic echo --once /autodrive/roboracer_1/ips` is the start of the raceline in `global_waypoints.json` (`global_traj_wpnts_iqp`, point 0, `x_m` and `y_m`).
@@ -83,12 +83,10 @@ Use the project from Step 1 of the plan (Unity 2022.3.52f1, `C:\dev\AutoDRIVE`).
 5. Disconnect and connect again. The track is built again.
 
 
-## Limits
+## Notes
 
-- **Verified outside Unity:** the geometry in `map_to_sim.py` on all eight maps in `stack_master/maps/` (the duct surface at LiDAR height lies on the map's wall edge within 1 cm on average and 5 cm at most; the checkpoints span the track wall to wall) and the bridge (the map is sent once per connection and again after a reconnect; nothing is sent without `map_path`).
-- **Not verified:** `MapLoader.cs` itself. It has not been compiled or run, because Unity cannot run in the container. Expect to fix small mistakes on first import.
-- **Walls:** thin infield walls (about 0.2 m in `GLC_smile_small` and `glc_ot_ez`) get thinner ducts, down to a radius of about 0.09 m. Every duct is taller than the LiDAR (0.155 m above the ground, measured on the simulator). The ducts have both windings in their meshes, so the LiDAR hits them from the track side whatever the direction of the outline.
+- **Walls:** the ducts are round with a radius of 0.15 m, and their surface at LiDAR height lies on the wall edge of the map. Where a wall in the map is thinner than a duct (the infields of `GLC_smile_small` and `glc_ot_ez`, about 0.2 m), the ducts are thinner (radius down to about 0.09 m), so that they do not reach into the track. All ducts are taller than the LiDAR (0.155 m above the ground).
+- **Respawn:** after the car hits a wall, `LapTimer` puts it back on the raceline at the last checkpoint. The stack does not know about this jump, so its localization is lost until the initial pose is set again (**2D Pose Estimate** in RViz, see the [`stack_master` README](../../../stack_master/README.md)). `LapTimer` places the car at the height of the checkpoint (0.01 m), as on the built-in tracks.
 - **Track camera:** the cameras that followed the built-in track (`FollowTarget`, used by `Trackcam`) are pointed at the center of the loaded track. Cameras that follow the car are unchanged.
 - **Single car:** the loader refuses to load (with a Console error) unless the scene has exactly one car with a `LapTimer`, so it does not work in the `- H2H` scene.
-- **Respawn height:** after hitting a wall, `LapTimer` places the car at the height of the checkpoint (0.01 m), as on the built-in tracks.
 - **Switching maps** needs a bridge restart. The simulator replaces the track whenever it receives a map.

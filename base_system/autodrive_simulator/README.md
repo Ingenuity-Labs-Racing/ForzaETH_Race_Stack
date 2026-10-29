@@ -1,7 +1,6 @@
 # AutoDRIVE Simulator
 
 Support for running the race stack on the [AutoDRIVE RoboRacer simulator](https://github.com/AutoDRIVE-Ecosystem/AutoDRIVE-RoboRacer-Sim-Racing).
-See [`docs/autodrive_integration_checklist.md`](../../docs/autodrive_integration_checklist.md) for the integration status.
 
 ## `autodrive_roboracer`
 Vendored copy of the AutoDRIVE devkit (ROS 2 bridge between the simulator and ROS).
