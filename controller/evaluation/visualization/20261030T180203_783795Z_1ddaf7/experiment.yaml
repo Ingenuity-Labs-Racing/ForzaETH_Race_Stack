@@ -1,0 +1,13 @@
+map_name: crown
+controller: MPC
+controller_config: controller/controller/mpc/mpc_params.yaml
+lookup_table: NUC2_hangar_pacejka
+laps: 2
+start_waypoint: 0
+output_directory: controller/visualization
+startup_timeout_s: 120.0
+reset_timeout_s: 15.0
+trial_timeout_s: 180.0
+stall_timeout_s: 15.0
+data_timeout_s: 3.0
+stop_timeout_s: 5.0

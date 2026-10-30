@@ -1,0 +1,18 @@
+# MPC configuration. Null timing thresholds disable the corresponding checks.
+# Plain YAML, read by MPCController; do not load this file as ROS parameters.
+horizon: 20
+dt: 0.025                         # Prediction timestep [s]
+wheelbase: 0.3302                  # [m]
+state_weights: [10, 100.0, 98.01, 13.12]              # [longitudinal, lateral, heading, steering] errors
+input_weights: [343.04, 8.02]              # [speed, steering rate] errors
+terminal_weight_multiplier: 30.0
+speed_min: 0.0                  # [m/s]; this adapter supports forward motion only
+speed_max: 10.0                  # [m/s]
+steering_min: -0.4               # [rad]
+steering_max: 0.4                # [rad]
+steering_rate_min: -3.2          # phi_dot [rad/s]
+steering_rate_max: 3.2          # phi_dot [rad/s]
+solver_plugin: qpoases              # CasADi conic solver, e.g. qpoases
+max_solve_time: null             # Optional [s]; null disables late-result rejection
+input_timeout: null              # Optional [s]; null disables input-age checks
+latency_compensation_s: 0.0       # Expected solve + command-delivery delay [s]; 0 disables

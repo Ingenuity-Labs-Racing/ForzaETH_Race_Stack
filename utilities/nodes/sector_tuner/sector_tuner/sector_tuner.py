@@ -1,3 +1,4 @@
+from copy import deepcopy
 import rclpy
 from rcl_interfaces.msg import ParameterType, ParameterDescriptor, FloatingPointRange
 from rclpy.node import Node
@@ -168,9 +169,10 @@ class SectorTuner(Node):
         Scales the global waypoints' velocities
         """
         if self.glb_wpnts_scaled is None:
-            self.glb_wpnts_scaled = self.glb_wpnts_og
             self.glb_wpnts_sp_scaled = self.glb_wpnts_sp_og
 
+        # Scale a fresh output message; keep the latest original speeds untouched.
+        self.glb_wpnts_scaled = deepcopy(self.glb_wpnts_og)
         for i, wpnt  in enumerate(self.glb_wpnts_og.wpnts):
             vel_scaling = self.get_vel_scaling(i)
             new_vel = wpnt.vx_mps*vel_scaling

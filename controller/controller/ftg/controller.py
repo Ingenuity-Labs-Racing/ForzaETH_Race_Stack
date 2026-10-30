@@ -22,8 +22,10 @@ class FTG_Controller(Node):
                  max_lidar_dist,
                  max_speed,
                  range_offset,
-                 track_width) -> None:
-        super().__init__('controller_manager')
+                 track_width,
+                 node_name='controller_manager',
+                 use_global_arguments=True) -> None:
+        super().__init__(node_name, use_global_arguments=use_global_arguments)
         """
         Initialize the FTG controller.
 
