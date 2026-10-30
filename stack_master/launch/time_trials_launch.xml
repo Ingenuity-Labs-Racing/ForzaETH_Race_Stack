@@ -1,7 +1,14 @@
 <launch>
     <arg name="racecar_version" default="NUC2" /> <!--  SIM / NUC1 / NUC2 / NUC3 ... -->
     <arg name="LU_table" default="NUC2_hangar_pacejka" />
+    <arg name="controller_config" default="" />
     <arg name="ctrl_algo" default="MAP" />
+    <arg name="map_config" default="" />
+    <arg name="evaluation_mode" default="False" />
+    <arg name="test_on_car" default="True" />
+    <arg name="nmpc_config" default="$(find-pkg-share controller)/nmpc/nmpc_params.yaml" />
+    <arg name="agmpc_config" default="$(find-pkg-share controller)/agmpc/agmpc_params.yaml" />
+    <arg name="initial_state" default="GB_TRACK" />
     <arg name="measure" default="False" />
 
     <!-- TODO feed this somewhere-->
@@ -10,18 +17,25 @@
     <!-- launch controller manager -->
     <include file="$(find-pkg-share controller)/launch/controller_launch.xml">
         <arg name="mode" value="$(var ctrl_algo)"/>
-        <arg name="param_file" value="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
+        <arg name="controller_config" value="$(var controller_config)"/>
+        <arg name="LU_table" value="$(var LU_table)"/>
+        <arg name="map_config" value="$(var map_config)"/>
+        <arg name="nmpc_config" value="$(var nmpc_config)"/>
+        <arg name="agmpc_config" value="$(var agmpc_config)"/>
         <arg name="mapping" value="False"/>
+        <arg name="evaluation_mode" value="$(var evaluation_mode)"/>
     </include>
 
     <!-- launch state machine -->
     <include file="$(find-pkg-share state_machine)/launch/state_machine_launch.xml">
         <arg name="param_file" value="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
         <arg name="mode" value="timetrials"/>
+        <arg name="initial_state" value="$(var initial_state)"/>
+        <arg name="test_on_car" value="$(var test_on_car)"/>
         <arg name="overtake_mode" value="dummy"/>
     </include>
 
     <!-- Override vesc smoothing for time trials (minimum latency) -->
-    <executable cmd="bash -c 'for i in {1..50}; do ros2 param set /ackermann_to_vesc_node servo_ma_window 1 &amp;&amp; ros2 param set /ackermann_to_vesc_node erpm_ma_window 1 &amp;&amp; break; sleep 0.2; done'" output="screen"/>
+    <executable unless="$(eval '\'$(var racecar_version)\' == \'SIM\'')" cmd="bash -c 'for i in {1..50}; do ros2 param set /ackermann_to_vesc_node servo_ma_window 1 &amp;&amp; ros2 param set /ackermann_to_vesc_node erpm_ma_window 1 &amp;&amp; break; sleep 0.2; done'" output="screen"/>
 
 </launch>

@@ -1,5 +1,7 @@
 <launch>
     <arg name="mode" default="timetrials" description="choose between: dummy / timetrials / head_to_head" />
+    <arg name="initial_state" default="GB_TRACK" description="Driving behavior, independent of controller selection"/>
+    <arg name="test_on_car" default="True"/>
     <arg name="overtake_mode" default="spliner" description="choose between: spliner" />
     <arg name="log-level" default="debug"/>
     <arg name="param_file" default="$(find-pkg-share stack_master)/config/state_machine_params.yaml" />
@@ -8,6 +10,8 @@
     <node pkg="state_machine" name="state_machine" exec="state_machine" output="screen" args="--ros-args --log-level state_machine:=$(var log-level)">
         <param from="$(var param_file)"/>
         <param name="mode" value="$(var mode)"/>
+        <param name="initial_state" value="$(var initial_state)"/>
+        <param name="test_on_car" value="$(var test_on_car)"/>
         <param name="overtake_mode" value="$(var overtake_mode)"/>
     </node>
 

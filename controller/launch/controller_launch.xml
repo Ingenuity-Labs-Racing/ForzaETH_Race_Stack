@@ -1,11 +1,23 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="LU_table" default="NUC5_hangar_pacejka"/>
-  <arg name="mode" default="MAP" description="Mode of operation: MAP / PP / (FTG). methods in brackets have not been implemented"/> <!-- TODO implement PP and MAPPING -->
+  <arg name="mode" default="MAP" description="Registered controller name"/>
+  <arg name="controller_config" default=""/>
+  <arg name="mapping" default="False"/>
+  <arg name="map_config" default=""/>
+  <arg name="evaluation_mode" default="False"/>
+  <arg name="nmpc_config" default="$(find-pkg-share controller)/nmpc/nmpc_params.yaml"/>
+  <arg name="agmpc_config" default="$(find-pkg-share controller)/agmpc/agmpc_params.yaml"/>
 
   <!--  launch L1 controller -->
   <node pkg="controller" name="controller" exec="controller">
+      <param name="controller_config" value="$(var controller_config)"/>
       <param name="mode" value="$(var mode)"/>
+      <param name="mapping" value="$(var mapping)"/>
+      <param name="evaluation_mode" value="$(var evaluation_mode)"/>
+      <param name="map_config" value="$(var map_config)"/>
+      <param name="nmpc_config" value="$(var nmpc_config)"/>
+      <param name="agmpc_config" value="$(var agmpc_config)"/>
       <param name="LU_table" value="$(var LU_table)"/>
   </node>
 

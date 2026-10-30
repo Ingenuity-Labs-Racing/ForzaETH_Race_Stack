@@ -1,181 +1,221 @@
-# Controller Manager
-![Controller Architecture](./misc/controller_arch.png)
+# Controller stack
 
-This controller package implements the following controllers:
-- [MAP controller](#model--and-acceleration-based-pursuit-map-controller)
-- [Pure Pursuit controller](#pure-pursuit-pp-controller)
-- [Follow the Gap controller](#follow-the-gap-ftg-controller)
+ROS 2 Humble controller package for MAP, AGMPC, NMPC, Pure Pursuit (PP), and Follow the Gap (FTG).
 
-The `controller_manager` implemented in `controller_manager.py` initializes the needed controllers. It runs at a specified loop rate where in each cycle the next control inputs are calculated via the choosen controller.
+The state machine chooses **driving behavior and local waypoints**. The controller registry chooses **the algorithm**. The manager runs the selected adapter and publishes speed and steering commands.
 
-## Input/Output Topic Signature
-This nodes subscribes to:
-- `/perception/obstacles`: Subscribes to the obstacle array.
-- `/car_state/odom`: Reads the car's state
-- `/car_state/pose`: Reads the car's state
-- `/car_state/frenet/odom`: Reads the car's state
-- `/global_waypoints`: Subscribes to local waypoints.
-- `/vesc/sensors/imu/raw`: Reads the IMU measurements.
-- `/scan`: Reads the LiDAR scans.
-- `/l1_param_cb`: Listens to the L1 parameters.
+## Package layout
 
-
-The node publishes to:
-- `/drive`: Publishes the control commands.
-- `/lookahead_point`: Publishes lookahead point marker.
-- `/steering`: Publishes steering arrow marker.
-- `/trailing_opponent_marker`: Published trailing opponend marker.
-- `/my_waypoints`: Publishes marker array of the received waypoints.
-- `/l1_distance`: Publishes the L1 distance.
-- `/trailing/gap_data`: Publishes the PID data for trailing.
-
-# Model- and Acceleration-based Pursuit (MAP) controller
-The MAP Controller based on [Model- and Acceleration-based Pursuit Controller for High-Performance Autonomous Racing](https://arxiv.org/pdf/2209.04346.pdf) calculates and publishes the optimal steering angle based on a vehicle model and velocity to track a given trajectory. It is managed by the `controller_manager.py` node.
-
-## Longitudinal controller
-The speed from the global optimizer is propagated to compensate for the delay and scaled according to the lateral error and the curvature of the waypoints. 
-
-
-`<parameter_name>`: description [minimum, maximum, tuned]
-
-- `speed_lookahead`: Lookahead time in seconds to account for actuation and computation delay [0, ∞, 0.25]
-- `lat_err_coeff`: How much of the lateral error is taken into account to smoothly rejoin the trajectory. Higher values increase the dependence of the lateral error on the speed reduction. [0, 1, 1]
-
-
-### Trailing Controller
-
-- `trailing_gap`: reference gap to the to-be-trailed opponent in meters[0, ∞, 1.5] 
-- `trailing_p_gain`: P-Gain of trailing controller [0, ∞, 1]
-- `trailing_i_gain`: I-Gain of trailing controller [0, ∞, 0]
-- `trailing_d_gain`: D-Gain of trailing controller [0, ∞, 0.2]
-- `blind_trailing_speed`: Minimal Trailing speed when opponent not in line-of-sight [0, ∞, 1.5]
-- `prioritize_dyn`: Ignore static obstacles, when a dynamic obstacle is present [False, True, True]
-
-
-## Lateral controller
-It uses the L1 guidance described in this paper: [Model- and Acceleration-based Pursuit Controller for High-Performance Autonomous Racing](https://arxiv.org/abs/2209.04346). 
-
-The idea is to compute the lateral acceleration and covert this with a lookup table into steering angles.
-To prevent oscillations when driving fast and to be able to track small curvatures, the L1 is scaled with delay compensated speed. For the lookup, the speed is propagated to compensate for the steering delay.
-When accelerating faster then 1 m/s^2, the steering is reduced and for deacceleration higher than -1m/s^2 the steering is increased.
-
-
-- `m_l1`: Proportional term for the affine mapping of the velocity to the lookahead distance
-for the MAP controller [0, ∞, 0.6] 
-- `q_l1`: Offset term for the affine mapping of the velocity to the lookahead distance. [−∞, ∞, -0.18]
-- `t_clip_min`: clipping value for minimal L1 distance [0, ∞, 0.8]
-- `t_clip_max`: clipping value for maximal L1 distance [0, ∞, 5]
-
-![visualisation of L1 distance calculation](misc/l1_dist.png)
-
-At high speeds the steering is downscaled by a factor to reduce tire slipping 
-- `start_scale_speed`: start of downscaling speed range [0, ∞, 7]
-- `end_scale_speed`: end of downscaling speed range [0, ∞, 8]
-- `downscale_factor`: percent of steer downscaling [0, 100, 20]
-
-![visualisation of speed scaling](misc/speed_scaling.png)
-- `acc_scaler_for_steer`: when accelerating stronger than 1m/s^2 the steering is increased by this factor [1, ∞, 1.2]
-- `dec_scaler_for_steer`: when accelerating stronger than -1m/s^2 the steering is reduced by this factor [0, 1, 0.9]
-- `speed_lookahead_for_steer`: Lookahead time in seconds propagate velocity, for steering lookup. Can increase laptime by cutting more corners [0, 0.2, 0]
-
-
-## Basic Use
-
-The controller can be started by using the following command:
-```
-ros2 launch controller controller_launch.xml mode:=MAP
+```text
+controller/
+├── core/
+│   ├── controller_manager.py     # ROS inputs, control loop, commands and evaluation services
+│   ├── controller_interface.py   # Shared inputs, results and adapter contract
+│   ├── controller_registry.py    # Controller factories, configuration and capabilities
+│   └── reference.py              # Shared predictive reference and tracking mechanics
+├── controller/
+│   ├── map/                     # MAP adapter and algorithm
+│   ├── pp/                      # Pure Pursuit adapter and algorithm
+│   ├── ftg/                     # LiDAR controller adapter and algorithm
+│   ├── agmpc/                     # AGMPC adapter, QP solver and tuning YAML
+│   ├── nmpc/                    # NMPC adapter, nonlinear solver, model and tuning YAML
+│   └── pursuit.py               # Shared MAP/PP adapter and L1 parameter handling
+├── evaluation/
+│   ├── tuning_params.yaml       # Map, controller, tuning-file selection and trial settings
+│   ├── trial_runner.py          # Continuous two-lap simulation and recording
+│   ├── metrics.py
+│   ├── plotting.py
+│   └── visualization/           # One unique directory per experiment
+├── launch/
+├── test/
+└── depricated_documentation/    # Historical documentation
 ```
 
-However we suggest to use the launch files present in the `stack_master package`.
+Paths in this tree are relative to this ROS package. Paths in the experiment YAML are relative to the **repository root**.
 
-# Pure Pursuit (PP) controller
-The goal of the Control module within the ForzaETH Race Stack is to enable performant, safe, and consistent lap completions by accurately tracking a trajectory provided by the local planner.
-The velocity and steering commands are managed, respectively, by the longitudinal and lateral controllers.
+The previous README is preserved in [the documentation archive](depricated_documentation/README.md).
 
-## Longitudinal controller
-The longitudinal controller computes the desired velocity of the racecar. This velocity is either obtained directly from the velocity of the local trajectory or computed by the trailing controller if the car is trailing an opponent and therefore in the Trailing state.
+## Architecture
 
-The speed from the local trajectory is propagated to compensate for the delay and scaled according to the lateral error and the curvature of the waypoints.
-
-
-### Parameters
-- `<parameter_name>`: description [minimum, maximum, tuned]
-
-- `speed_lookahead`: Lookahead time in seconds to account for actuation and computation delay [0, ∞, 0.25]
-
-- `lat_err_coeff`: How much of the lateral error is taken into account to smoothly rejoin the trajectory. Higher values increase the dependence of the lateral error on the speed reduction. [0, 1, 1]
-
-
-### Trailing Controller Parameters
-
-
-- `trailing_gap`: reference gap to the to-be-trailed opponent in meters[0, ∞, 1.5] 
-
-- `trailing_p_gain`: P-Gain of trailing controller [0, ∞, 1]
-
-- `trailing_i_gain`: I-Gain of trailing controller [0, ∞, 0]
-
-- `trailing_d_gain`: D-Gain of trailing controller [0, ∞, 0.2]
-
-- `blind_trailing_speed`: Minimal Trailing speed when opponent not in line-of-sight [0, ∞, 1.5]
-
-- `prioritize_dyn`: Ignore static obstacles, when a dynamic obstacle is present [False, True, True]
-
-
-## Lateral controller
-The Pure Pursuit controller computes the steering angle via geometric considerations.
-To prevent oscillations when driving fast and to be able to track small curvatures, the L1 is scaled with delay compensated speed. For the steering angle caculations, the speed is propagated to compensate for the steering delay.
-When accelerating faster then 1 m/s^2, the steering is reduced and for deacceleration higher than -1m/s^2 the steering is increased.
-
-### Parameters
-
-- `m_l1`: Proportional term for the affine mapping of the velocity to the lookahead distance
-for the PP controller [0, ∞, 0.6] 
-
-- `q_l1`: Offset term for the affine mapping of the velocity to the lookahead distance. [−∞, ∞, -0.18]
-
-- `t_clip_min`: clipping value for minimal L1 distance [0, ∞, 0.8]
-
-- `t_clip_max`: clipping value for maximal L1 distance [0, ∞, 5]
-
-![visualisation of L1 distance calculation](misc/l1_dist.png)
-
-At high speeds the steering is downscaled by a factor to reduce tire slipping 
-
-- `start_scale_speed`: start of downscaling speed range [0, ∞, 7]
-
-- `end_scale_speed`: end of downscaling speed range [0, ∞, 8]
-
-- `downscale_factor`: percent of steer downscaling [0, 100, 20]
-
-![visualisation of speed scaling](misc/speed_scaling.png)
-
-- `acc_scaler_for_steer`: when accelerating stronger than 1m/s^2 the steering is increased by this factor [1, ∞, 1.2]
-
-- `dec_scaler_for_steer`: when accelerating stronger than -1m/s^2 the steering is reduced by this factor [0, 1, 0.9]
-
-- `speed_lookahead_for_steer`: Lookahead time in seconds propagate velocity, for steering lookup. Can increase laptime by cutting more corners [0, 0.2, 0]
-
-
-## Basic Use
-
-The controller can be started by using the following command:
-```
-ros2 launch controller controller_launch.xml mode:=PP
+```mermaid
+flowchart LR
+    P["Global planner and sector tuner"] --> S["State machine"]
+    S -->|"Behavior and local waypoints"| M["Controller manager"]
+    I["Pose, velocity and optional inputs"] --> M
+    R["Registry and selected YAML"] --> M
+    M -->|"ControllerInputs"| A["Selected adapter"]
+    A -->|"ControllerResult"| M
+    M --> D["/drive"]
 ```
 
-However we suggest to use the launch files present in the `stack_master package`.
+| Component | Responsibility |
+|---|---|
+| [Manager](core/controller_manager.py) | Receive ROS data, run the selected adapter at 40 Hz, validate results, publish commands and handle enable/reset. |
+| [Interface](core/controller_interface.py) | Define `ControllerInputs`, `ControllerResult`, `ControllerContext`, and `ControllerAdapter`. |
+| [Registry](core/controller_registry.py) | Define factories, configuration loaders, default paths, required inputs, supported behaviors and report capabilities. |
+| [Reference utilities](core/reference.py) | Share nearest-waypoint selection, time sampling, optional latency compensation and predictive command integration. |
+| Controller adapter | Connect one algorithm to the common interface and expose its diagnostics and optional parameter updates. |
+| [Evaluation](evaluation/README.md) | Run two continuous laps, record data and generate controller-independent reports. |
 
+The state machine is organized in [state_machine.py](../state_machine/state_machine/state_machine.py) for ROS/parameter handling and [behavior.py](../state_machine/state_machine/behavior.py) for behavior logic.
 
-# Follow The Gap (FTG) controller
+Its behaviors are `GB_TRACK`, `TRAILING`, `OVERTAKE`, and `FTGONLY`. Time trials use `GB_TRACK` for every controller. Controller algorithms do not have separate state-machine states.
 
-## Description
-The Follow-The-Gap (FTG) Controller is a simple reactive controller which uses directly the LiDAR scans and the car's pose to compute and publish the velocity and steering angle of the car. In our race stack, the FTG controller is mainly used for mapping, so that we do not have to drive manually around the track. However, even though never used in practice anymore, there is the possibility to set a sector in the state machine as `FTGONLY` and then the FTG controller managed by `controller_manager.py` is used during these sectors.
+## Available controllers
 
- ## Parameters
- - `track_width`: Approximate width of the track.
- - `max_speed`: Maximum speed allowed.
- - `safety_radius`: Safety radius to reduce cutting corners.
- - `max_lidar_dist`: Maximum possible scan distance of the LiDAR.
- - `range_offset`: Range of LiDAR points to be considered, only consider `[range_offset,-range_offset]`.
- - `debug`: If set to `True`, the best gap, best point and preprocessed LiDAR scans are published as Markers.
+| Selection | Method | Normal-stack SIM preset |
+|---|---|---|
+| `MAP` | Pursuit control using a steering lookup table | [SIM L1 parameters](../stack_master/config/SIM/l1_params.yaml) |
+| `PP` | Pure Pursuit | [SIM L1 parameters](../stack_master/config/SIM/l1_params.yaml) |
+| `AGMPC` | Geometric Ackermann MPC using a CasADi conic QP solver | [AGMPC parameters](controller/agmpc/agmpc_params.yaml) |
+| `NMPC` | Nonlinear bicycle MPC using CasADi/IPOPT | [NMPC parameters](controller/nmpc/nmpc_params.yaml) |
+| `FTG` | Reactive LiDAR gap following | [State-machine parameters](../stack_master/config/state_machine_params.yaml) |
+
+Use `AGMPC` for the geometric controller. Its implementation and tuning file are under `controller/agmpc/`.
+
+AGMPC and NMPC support global tracking only. MAP and PP support global tracking, trailing and overtaking; their registry entries explicitly route `FTGONLY` to FTG. FTG accepts the four behavior states and runs its reactive LiDAR algorithm. Unsupported controller/behavior combinations produce a zero command.
+
+AGMPC and NMPC have independent implementations and configurations. Both use the shared predictive tracking mechanics; NMPC does not inherit from the AGMPC controller class. See the [AGMPC guide](controller/agmpc/README.md) and [NMPC guide](controller/nmpc/README.md) for their models and parameters.
+
+## Run a controller-tuning trial
+
+Run the following commands inside the **existing ROS 2 container**. Stop other simulator/controller launches first.
+
+After adding or restructuring Python packages, build the affected ROS packages:
+
+```bash
+cd ~/ws
+colcon build --symlink-install --packages-select controller state_machine stack_master
+source install/setup.bash
+```
+
+Edit **only [evaluation/tuning_params.yaml](evaluation/tuning_params.yaml)** for a tuning trial.
+It contains the map, selected controller, trial settings, and every controller's
+parameters. Set the selection at the top:
+
+```yaml
+controller: AGMPC
+```
+
+Then tune the corresponding block in that same file:
+
+```yaml
+controllers:
+  MAP:
+    lookup_table: NUC2_hangar_pacejka
+    # MAP parameters...
+  AGMPC:
+    # AGMPC horizon, weights, limits and timing parameters...
+  NMPC:
+    # NMPC horizon, weights, limits and timing parameters...
+  PP:
+    # Pure Pursuit parameters...
+  FTG:
+    # LiDAR controller parameters...
+```
+
+This illustrates the layout; the actual YAML already contains all parameter
+values copied from the existing presets. Only the selected block is loaded.
+For example, editing `controllers.AGMPC.speed_max` changes the tuning trial's
+AGMPC speed limit. There is no `controller_config` path to change for evaluation.
+
+The separate controller preset files in the table above apply to normal stack
+launches. Tuning trials use the values in the evaluation YAML and do not write
+them back into those presets.
+
+Launch the evaluation:
+
+```bash
+ros2 launch stack_master controller_tuning.launch.py
+```
+
+This launches its own headless simulator, resets the vehicle and controller once, runs **two continuous laps without resetting between them**, then stops and saves the reports. It does not require RViz.
+
+The experiment YAML also contains startup, reset, trial, stall, data and stopping timeouts. Changing experiment or controller YAML requires a fresh launch, **not a Docker image rebuild or ROS rebuild**.
+
+For a different checkout or experiment YAML:
+
+```bash
+ros2 launch stack_master controller_tuning.launch.py \
+  source_root:=/absolute/path/to/race_stack \
+  evaluation_config:=/absolute/path/to/experiment.yaml
+```
+
+## Results
+
+Each trial creates a unique directory under `controller/evaluation/visualization/` in the source checkout.
+
+| File | Contents |
+|---|---|
+| `experiment.yaml` | Exact complete single-file experiment configuration, including all controller blocks. |
+| `controller_params.yaml` | Resolved parameters for the selected controller. |
+| `planned_path.csv` | Scaled global planner waypoints. |
+| `samples.csv` | Per-command pose, references, commands, validity, diagnostics and lap assignment. |
+| `summary.json` | Completion reason, stop confirmation, lap times, errors, sample gaps and available solver/constraint metrics. |
+| `planned_path.png` | Planned path colored by desired waypoint speed, with a colorbar. |
+| `trajectory_comparison.png` | Three panels: both laps, lap one, lap two, each overlaid on the planned path. |
+| `tracking_and_commands.png` | Position error, heading error, speed comparison and steering comparison. |
+
+Heading errors are reported in **degrees**. Pose headings and steering angles remain in **radians**; speeds are in **m/s**.
+
+The desired speeds shown in reports already include sector-tuner scaling. For MAP/PP, the recorded reference is the nearest planner waypoint before the controller runs. The steering reference is planner-derived, `atan(wheelbase * curvature)`. For AGMPC/NMPC, the reference is the first point of the time-sampled controller horizon.
+
+Measured speed is recorded separately from the published speed command. Steering feedback for the predictive controllers is the accumulated steering command, not a measured steering angle. Position error is distance to the recorded reference waypoint, not perpendicular distance to a path segment.
+
+Unavailable metrics are left unavailable: MAP/PP/FTG do not acquire fabricated solver timings, and the current simulator bridge does not publish collision counts. FTG has no waypoint-tracking reference. A stalled or interrupted trial saves an incomplete report.
+
+Regenerate figures from an existing recording without driving again:
+
+```bash
+ros2 run controller controller_evaluation_plot /absolute/path/to/experiment
+```
+
+See [evaluation/README.md](evaluation/README.md) for metric definitions and report behavior.
+
+## Run against an already running simulator
+
+The time-trial launch starts the controller and state machine; it expects the simulator/base system to be running separately:
+
+```bash
+source ~/ws/install/setup.bash
+ros2 launch stack_master time_trials_launch.xml racecar_version:=SIM ctrl_algo:=AGMPC
+```
+
+Use `ctrl_algo:=MAP`, `NMPC`, `PP`, or `FTG` to select another registry entry. A generic `controller_config:=/absolute/path/to/params.yaml` overrides the default file. The controller-specific `agmpc_config`, `nmpc_config`, and `map_config` arguments are also available.
+
+## Shared inputs and outputs
+
+The manager subscribes to these existing stack interfaces. Each registry entry declares which inputs its adapter requires.
+
+| Topic | Type | Purpose |
+|---|---|---|
+| `/state` | `std_msgs/String` | Driving behavior. |
+| `/local_waypoints` | `f110_msgs/WpntArray` | Local planner window. |
+| `/global_waypoints` | `f110_msgs/WpntArray` | Track length and global geometry. |
+| `/car_state/pose` | `geometry_msgs/PoseStamped` | Map pose. |
+| `/car_state/odom` | `nav_msgs/Odometry` | Measured speed. |
+| `/car_state/frenet/odom` | `nav_msgs/Odometry` | Frenet state when needed. |
+| `/perception/obstacles` | `f110_msgs/ObstacleArray` | Obstacles and opponent selection. |
+| `/vesc/sensors/imu/raw` | `sensor_msgs/Imu` | Acceleration input when available. |
+| `/scan` | `sensor_msgs/LaserScan` | LiDAR input for FTG. |
+
+Commands are published on **`/drive`** as `ackermann_msgs/AckermannDriveStamped`: `drive.speed` in m/s and `drive.steering_angle` in radians. Optional lookahead and steering diagnostics are published by the manager.
+
+In evaluation mode, the manager also publishes JSON samples on `/controller/evaluation/sample` and provides `/controller/evaluation/enable` (`std_srvs/SetBool`) and `/controller/evaluation/reset` (`std_srvs/Trigger`). Reset is accepted only while paused.
+
+## Add a controller
+
+1. Create `controller/<name>/` inside this ROS package, including `__init__.py`, an adapter, its algorithm and an optional tuning YAML.
+2. Implement [ControllerAdapter](core/controller_interface.py):
+   - Set `config` and expose configuration errors through `error`.
+   - Implement `reset(steering=0.)` and `step(ControllerInputs) -> ControllerResult`.
+   - Return speed, steering angle, validity, a failure reason and any available diagnostics.
+   - Supply parameter descriptors/updates or cleanup through the optional hooks when needed.
+3. Add a `ControllerSpec` entry in [core/controller_registry.py](core/controller_registry.py), defining its factory, configuration loader, default configuration path, supported behaviors and required inputs.
+4. Add focused tests under `test/`, rebuild `controller`, and add its parameter block under `controllers.<NAME>` in the evaluation YAML.
+
+The shared input object includes pose, speed, local waypoints, behavior, control timestep and pose age, plus optional Frenet state, acceleration, obstacles/opponent, track length and scan. Waypoint array columns remain `x, y, speed, track ratio, s, curvature, heading, acceleration`.
+
+Optional registry report capabilities `solve_time` and `constraints` enable the corresponding metrics. Reference descriptions and plot labels also come from the registry. This keeps algorithm-specific branches out of the manager and evaluator.
+
+Package discovery installs new controller packages and adjacent YAML files automatically. A controller that fits the existing input/result contract normally needs **no changes to the state machine, manager, or evaluator**.
