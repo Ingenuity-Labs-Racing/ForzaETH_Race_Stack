@@ -1,0 +1,25 @@
+# Scan-to-map localizer (slam_toolbox_sandbox/scan_match_localizer.py) on a fixed map.
+# The initial pose and the map are set by launch/scan_match.launch.py.
+scan_match_localizer:
+  ros__parameters:
+    # Frames
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    transform_tolerance: 0.1    # [s] map->odom is stamped this far ahead
+
+    # Scan points
+    beam_step: 4                # use every 4th beam (~270 of 1081)
+    min_range: 0.1              # [m]
+    max_range: 20.0             # [m] same cap as SLAM Toolbox and AMCL
+
+    # Matching
+    max_iterations: 10          # Gauss-Newton iterations per scan
+    max_match_dist: 0.5         # [m] points further than this from a wall don't pull the pose
+    translation_weight: 0.01    # prior towards the odometry guess; keeps the pose along straights
+    rotation_weight: 0.1
+
+    # Rejection - a rejected match keeps the odometry prediction
+    inlier_dist: 0.1            # [m] a point within this of a wall counts as matched
+    min_inlier_ratio: 0.3       # reject if fewer points than this match
+    max_correction: 0.5         # [m] reject if the match moves the pose further than this

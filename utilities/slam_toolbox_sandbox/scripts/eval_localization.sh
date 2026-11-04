@@ -1,24 +1,32 @@
 #! /bin/bash
-# Standard localization benchmark for the sandbox. For each speed it starts a fresh headless
-# sim, runs SLAM Toolbox localization on the reference map, drives autopilot laps and
-# measures the error against Gazebo's ground truth.
+# Standard localization benchmark for the sandbox. For each localizer and speed it starts a
+# fresh headless sim, starts the localizer, drives autopilot laps and measures the error
+# against Gazebo's ground truth.
+#   slam: SLAM Toolbox on its serialized reference map (maps/victoria_ref)
+#   amcl: Nav2 AMCL on the ground-truth map (stack_master/maps/Victoria)
+#   scan: scan_match_localizer, scan-to-map matching on the same fixed ground-truth map
 # Runs in its own Gazebo partition / ROS domain, so it doesn't interfere with an open session.
+# Several can run at once with different -i (each takes ~1 CPU core and ~1 GB; don't combine with -v).
 #
-#   usage: eval_localization.sh [-t tag] [-s "0.8 1.5"] [-r repeats] [-l laps] [-p params.yaml] [-m map] [-v] [-b]
+#   usage: eval_localization.sh [-L "slam amcl"] [-t tag] [-s "0.8 1.5"] [-r repeats] [-l laps] [-p params.yaml] [-m map] [-v] [-b]
+#     -L  localizers to test, each under the same conditions (default: "slam")
 #     -t  name for this run (default: "run")
 #     -s  speeds in m/s (default: "0.8 1.5")
 #     -r  runs per speed, each in a fresh sim (default: 1). Results vary run to run, use >= 3 to compare settings
 #     -l  laps per run, driven back to back (default: 1)
-#     -p  SLAM Toolbox params (default: config/localization.yaml)
-#     -m  serialized map without extension (default: maps/victoria_ref)
+#     -p  localizer params (default: config/localization.yaml, amcl.yaml or scan_match.yaml)
+#     -m  map (default: maps/victoria_ref for slam - serialized, no extension;
+#         stack_master/maps/Victoria/Victoria.yaml for amcl and scan). -p and -m need a single localizer
 #     -v  watch it in the Foxglove app (ws://localhost:8765, layout foxglove/sandbox_layout.json).
 #         Close your own sim first: only one Foxglove bridge can use the port.
 #     -b  record every run as a bag (MCAP, open it in Foxglove). Needs ros-humble-rosbag2-storage-mcap
+#     -i  instance number 1-20 for parallel benchmarks: own Gazebo partition and ROS domain
 #
 # Output: results/<date>_<tag>/ (logs + per-sample CSV per run), and one row per run
 # appended to results/summary.csv. Exit code is non-zero if any lap failed.
 
 SANDBOX=~/ws/src/race_stack/utilities/slam_toolbox_sandbox
+LOCALIZERS=slam
 TAG=run
 SPEEDS="0.8 1.5"
 REPEATS=1
@@ -26,39 +34,53 @@ LAPS=1
 BAG=false
 FOXGLOVE=false
 PARAMS=default
-MAP=$SANDBOX/maps/victoria_ref
-while getopts "t:s:r:l:p:m:vbh" opt; do
+MAP=default
+INSTANCE=""
+while getopts "L:t:s:r:l:p:m:i:vbh" opt; do
     case $opt in
+        L) LOCALIZERS=$OPTARG ;;
         t) TAG=$OPTARG ;;
         s) SPEEDS=$OPTARG ;;
         r) REPEATS=$OPTARG ;;
         l) LAPS=$OPTARG ;;
         v) FOXGLOVE=true ;;
         b) BAG=true ;;
+        i) INSTANCE=$OPTARG ;;
         p) PARAMS=$(realpath "$OPTARG") ;;
         m) MAP=$(realpath -m "$OPTARG") ;;
-        *) sed -n '2,19p' "$0"; exit 1 ;;
+        *) sed -n '2,26p' "$0"; exit 1 ;;
     esac
 done
 
-export IGN_PARTITION=eval ROS_DOMAIN_ID=77
+if [ -n "$INSTANCE" ]; then
+    [[ "$INSTANCE" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "-i must be 1-20"; exit 1; }
+    export IGN_PARTITION=eval$INSTANCE ROS_DOMAIN_ID=$((77 + INSTANCE))
+else
+    export IGN_PARTITION=eval ROS_DOMAIN_ID=77
+fi
 source /opt/ros/humble/setup.bash
 source ~/ws/install/setup.bash
 
-[ -f "$MAP.posegraph" ] || { echo "map not found: $MAP.posegraph"; exit 1; }
-PARAMS_ARG=""; [ "$PARAMS" != "default" ] && PARAMS_ARG="params:=$PARAMS"
-OUT=$SANDBOX/results/$(date +%Y-%m-%d_%H%M%S)_$TAG
+for L in $LOCALIZERS; do
+    [ "$L" = slam ] || [ "$L" = amcl ] || [ "$L" = scan ] || { echo "unknown localizer: $L (use slam, amcl or scan)"; exit 1; }
+done
+if [ $(wc -w <<< "$LOCALIZERS") -gt 1 ] && { [ "$PARAMS" != default ] || [ "$MAP" != default ]; }; then
+    echo "-p and -m need a single localizer (-L slam, -L amcl or -L scan)"; exit 1
+fi
+OUT=$SANDBOX/results/$(date +%Y-%m-%d_%H%M%S)${INSTANCE:+_i$INSTANCE}_$TAG
 SUMMARY=$SANDBOX/results/summary.csv
 mkdir -p "$OUT"
-[ -f "$SUMMARY" ] || echo "date,tag,commit,params,map,speed,run,laps,lap_done,samples,pos_rmse,pos_p95,pos_max,yaw_rmse_deg,yaw_max_deg" > "$SUMMARY"
+[ -f "$SUMMARY" ] || echo "date,tag,localizer,commit,params,map,speed,run,laps,lap_done,samples,pos_rmse,pos_p95,pos_max,yaw_rmse_deg,yaw_max_deg,run_dir" > "$SUMMARY"
 # safe.directory: inside the container the repo belongs to the host user
 GIT="git -c safe.directory=* -C $SANDBOX"
 COMMIT=$($GIT rev-parse --short HEAD)$($GIT diff --quiet HEAD -- . || echo "+dirty")
 
-# Kills only processes started in the eval partition (pkill -f could hit the user's session).
+# Kills only processes started in this partition (pkill -f could hit the user's session or
+# another parallel benchmark).
 cleanup() {
-    for p in $(pgrep -f "ign gazebo|parameter_bridge|static_transform|foxglove_bridge|ros2 launch|autodrive|slam_toolbox_node|pose_error|ros2 bag"); do
-        tr "\0" "\n" < /proc/$p/environ 2>/dev/null | grep -q IGN_PARTITION=eval && kill -9 $p 2>/dev/null
+    for p in $(pgrep -f "ign gazebo|parameter_bridge|static_transform|foxglove_bridge|ros2 launch|autodrive|slam_toolbox_node|nav2_map_server/map_server|nav2_amcl/amcl|lifecycle_manager|scan_match_localizer|pose_error|ros2 bag"); do
+        [ $p = $$ ] && continue
+        tr "\0" "\n" < /proc/$p/environ 2>/dev/null | grep -qx "IGN_PARTITION=$IGN_PARTITION" && kill -9 $p 2>/dev/null
     done
     sleep 1
 }
@@ -78,9 +100,20 @@ float() { python3 -c "print(float($1))"; }
 
 FAILED=0
 cleanup
+for LOCALIZER in $LOCALIZERS; do
+if [ "$LOCALIZER" = slam ]; then
+    LAUNCH=localization.launch.py
+    L_MAP=$MAP; [ "$L_MAP" = default ] && L_MAP=$SANDBOX/maps/victoria_ref
+    [ -f "$L_MAP.posegraph" ] || { echo "map not found: $L_MAP.posegraph"; exit 1; }
+else
+    LAUNCH=amcl.launch.py; [ "$LOCALIZER" = scan ] && LAUNCH=scan_match.launch.py
+    L_MAP=$MAP; [ "$L_MAP" = default ] && L_MAP=~/ws/src/race_stack/stack_master/maps/Victoria/Victoria.yaml
+    [ -f "$L_MAP" ] || { echo "map not found: $L_MAP"; exit 1; }
+fi
+PARAMS_ARG=""; [ "$PARAMS" != "default" ] && PARAMS_ARG="params:=$PARAMS"
 for SPEED in $SPEEDS; do for RUN in $(seq $REPEATS); do
-    LOG=$OUT/speed_${SPEED}_run$RUN
-    echo "[$TAG] speed $SPEED m/s, run $RUN/$REPEATS ..."
+    LOG=$OUT/${LOCALIZER}_speed_${SPEED}_run$RUN
+    echo "[$TAG] $LOCALIZER, speed $SPEED m/s, run $RUN/$REPEATS ..."
 
     ros2 launch slam_toolbox_sandbox sim.launch.py foxglove:=$FOXGLOVE > $LOG.sim.log 2>&1 < /dev/null &
     disown  # no "Killed" messages when cleanup stops it
@@ -88,7 +121,7 @@ for SPEED in $SPEEDS; do for RUN in $(seq $REPEATS); do
         echo "  FAIL: sim did not start (see $LOG.sim.log)"; FAILED=1; cleanup; continue
     fi
 
-    ros2 launch slam_toolbox_sandbox localization.launch.py map:=$MAP $PARAMS_ARG csv:=$LOG.csv \
+    ros2 launch slam_toolbox_sandbox $LAUNCH map:=$L_MAP $PARAMS_ARG csv:=$LOG.csv \
         > $LOG.loc.log 2>&1 < /dev/null &
     LOC_PID=$!
     disown
@@ -127,11 +160,12 @@ rms = lambda v: math.sqrt(sum(e * e for e in v) / len(v))
 print(f'{len(pos)},{rms(pos):.3f},{pos[int(0.95 * (len(pos) - 1))]:.3f},{pos[-1]:.3f},{rms(yaw):.2f},{max(yaw):.2f}')
 EOF
 )
-    echo "$(date +%F),$TAG,$COMMIT,$(basename $PARAMS),$(basename $MAP),$SPEED,$RUN,$LAPS,$LAP_DONE,$STATS" >> "$SUMMARY"
+    echo "$(date +%F),$TAG,$LOCALIZER,$COMMIT,$(basename $PARAMS),$(basename $L_MAP .yaml),$SPEED,$RUN,$LAPS,$LAP_DONE,$STATS,$(basename $OUT)" >> "$SUMMARY"
     IFS=, read N RMSE P95 MAX YRMSE YMAX <<< "$STATS"
     echo "  lap done: $LAP_DONE | samples $N | position RMSE $RMSE m, p95 $P95 m, max $MAX m | yaw RMSE $YRMSE deg, max $YMAX deg"
     [ "$LAP_DONE" = true ] && [ "$N" -gt 0 ] || FAILED=1
 done; done
+done
 
 echo "Logs: $OUT"
 echo "All runs: $SUMMARY"

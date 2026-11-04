@@ -29,6 +29,7 @@ setup(
             'png_to_world = slam_toolbox_sandbox.png_to_world:main',
             'pose_error = slam_toolbox_sandbox.pose_error:main',
             'autodrive = slam_toolbox_sandbox.autodrive:main',
+            'scan_match_localizer = slam_toolbox_sandbox.scan_match_localizer:main',
         ],
     },
 )
