@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using UnityEngine;
 
@@ -8,7 +9,8 @@ public class MapLoader : MonoBehaviour
     /*
     This script builds a racetrack at runtime from the geometry that the race stack bridge sends in the `Map`
     field of its first reply (base64 encoded JSON, see `map_to_sim.py`): round duct walls, checkpoints, the finish
-    line and the start pose of the vehicle. The built-in tracks are hidden.
+    line and the start pose of the vehicle. The built-in tracks are hidden. `Teleport` moves the vehicle to a pose
+    set with RViz's 2D Pose Estimate (the `Teleport` field of a bridge reply).
 
     The geometry arrives in the ROS map frame and is converted to Unity like `GPS.cs` does,
     Unity (x, y, z) = (-y, z, x). A ROS yaw of `a` is a rotation of `-a` about the vertical axis.
@@ -116,14 +118,53 @@ public class MapLoader : MonoBehaviour
         return null;
     }
 
+    // Move the vehicle to a pose from RViz's 2D Pose Estimate, "x,y,yaw" in the ROS map frame, sent by the bridge.
+    // Only on a loaded map: only then the simulator's world frame is the stack's map frame.
+    public void Teleport(string pose)
+    {
+        try
+        {
+            if (Racetrack == null)
+            {
+                Debug.LogWarning("MapLoader: ignoring the pose from the bridge, no map is loaded");
+                return;
+            }
+            string[] values = pose.Split(',');
+            Placement placement = new Placement
+            {
+                x = float.Parse(values[0], CultureInfo.InvariantCulture),
+                y = float.Parse(values[1], CultureInfo.InvariantCulture),
+                yaw = float.Parse(values[2], CultureInfo.InvariantCulture),
+            };
+            LapTimer[] lapTimers = FindObjectsOfType<LapTimer>();
+            Rigidbody vehicleRigidBody = lapTimers.Length == 1 ? lapTimers[0].GetComponent<Rigidbody>() : null;
+            if (vehicleRigidBody == null)
+            {
+                Debug.LogError("MapLoader: expected exactly one vehicle with a `LapTimer` and a `Rigidbody` in the scene");
+                return;
+            }
+            MoveVehicle(lapTimers[0].transform, vehicleRigidBody, placement);
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+        }
+    }
+
+    // Place the vehicle at a pose in the ROS map frame, at rest
+    private void MoveVehicle(Transform vehicle, Rigidbody vehicleRigidBody, Placement placement)
+    {
+        if (float.IsNaN(VehicleHeight)) VehicleHeight = vehicle.position.y;
+        vehicleRigidBody.velocity = Vector3.zero;
+        vehicleRigidBody.angularVelocity = Vector3.zero;
+        vehicle.position = ToUnity(placement.x, placement.y, VehicleHeight);
+        vehicle.rotation = Quaternion.Euler(0f, -placement.yaw * Mathf.Rad2Deg, 0f);
+    }
+
     // Place the vehicle at the start of the raceline and reset the lap data for the new racetrack
     private void PlaceVehicle(MapData map, LapTimer lapTimer, Rigidbody vehicleRigidBody, Transform[] checkpoints)
     {
-        if (float.IsNaN(VehicleHeight)) VehicleHeight = lapTimer.transform.position.y;
-        vehicleRigidBody.velocity = Vector3.zero;
-        vehicleRigidBody.angularVelocity = Vector3.zero;
-        lapTimer.transform.position = ToUnity(map.spawn.x, map.spawn.y, VehicleHeight);
-        lapTimer.transform.rotation = Quaternion.Euler(0f, -map.spawn.yaw * Mathf.Rad2Deg, 0f);
+        MoveVehicle(lapTimer.transform, vehicleRigidBody, map.spawn);
 
         lapTimer.RacetrackName = RacetrackName;
         lapTimer.Checkpoints = checkpoints;

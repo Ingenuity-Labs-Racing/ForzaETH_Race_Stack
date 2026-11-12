@@ -33,10 +33,10 @@ import rclpy # ROS 2 client library (rcl) for Python (built on rcl C API)
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy # Quality of Service (tune communication between nodes)
 import tf2_ros # ROS bindings for tf2 library to handle transforms
 from std_msgs.msg import Int32, Float32, Header # Int32, Float32 and Header message classes
-from geometry_msgs.msg import Point, TransformStamped # Point and TransformStamped message classes
+from geometry_msgs.msg import Point, TransformStamped, PoseWithCovarianceStamped # Point, TransformStamped and PoseWithCovarianceStamped message classes
 from sensor_msgs.msg import JointState, Imu, LaserScan, Image # JointState, Imu, LaserScan and Image message classes
 from nav_msgs.msg import Odometry # Odometry message class
-from tf_transformations import quaternion_from_euler # Euler angle representation to quaternion representation
+from tf_transformations import quaternion_from_euler, euler_from_quaternion # Conversions between Euler angle and quaternion representations
 from threading import Thread # Thread-based parallelism
 
 # Python module imports
@@ -90,6 +90,8 @@ autodrive = AutoDRIVE()
 # race_stack: stack map (see map_to_sim.py), sent to the simulator once per connection to build its racetrack
 map_message = None
 map_sent = set() # Socket ids that already received the map
+# race_stack: pose from RViz's 2D Pose Estimate ("x,y,yaw" in the map frame), sent to the simulator once to move the vehicle there
+teleport_message = None
 
 #########################################################
 # ROS 2 MESSAGE GENERATING FUNCTIONS
@@ -296,6 +298,13 @@ def callback_reset_command(reset_command_msg):
     global autodrive
     autodrive.reset_command = reset_command_msg.data
 
+# race_stack: move the vehicle to the pose set with RViz's 2D Pose Estimate, like f1tenth_gym_ros does
+def callback_initialpose(initialpose_msg):
+    global teleport_message
+    pose = initialpose_msg.pose.pose
+    yaw = euler_from_quaternion([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])[2]
+    teleport_message = f'{pose.position.x:.4f},{pose.position.y:.4f},{yaw:.4f}'
+
 #########################################################
 # WEBSOCKET SERVER INFRASTRUCTURE
 #########################################################
@@ -317,7 +326,7 @@ def disconnect(sid):
 @sio.on('Bridge')
 def bridge(sid, data):
     # Global declarations
-    global autodrive, autodrive_bridge, cv_bridge, publishers, transform_broadcaster
+    global autodrive, autodrive_bridge, cv_bridge, publishers, transform_broadcaster, teleport_message
 
     # Wait for data to become available
     if data:
@@ -385,6 +394,10 @@ def bridge(sid, data):
         if map_message is not None and sid not in map_sent:
             reply['Map'] = map_message
             map_sent.add(sid)
+        # race_stack: a pose from 2D Pose Estimate is sent once, in the next reply
+        if teleport_message is not None:
+            reply['Teleport'] = teleport_message
+            teleport_message = None
         sio.emit('Bridge', data=reply)
 
 #########################################################
@@ -445,6 +458,9 @@ def main():
         '/autodrive/reset_command': callback_reset_command
     } # Subscriber callback functions
     [autodrive_bridge.create_subscription(e.type, e.topic, callbacks[e.topic], qos_profile) for e in config.pub_sub_dict.subscribers] # Subscribers
+    # race_stack: only with a map, since only then the simulator's world frame is the stack's map frame
+    if map_path:
+        autodrive_bridge.create_subscription(PoseWithCovarianceStamped, '/initialpose', callback_initialpose, qos_profile)
 
     # timer_period = 0.025 # Timer period in seconds
     # autodrive_bridge.create_timer(timer_period, timer_callback)

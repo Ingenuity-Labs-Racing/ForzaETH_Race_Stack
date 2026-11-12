@@ -4,6 +4,7 @@
   <arg name="map_name" description="Map name in stack_master/maps" />
   <arg name="sim" default="False" description="True/False if you want to run simulation" />
   <arg name="autodrive" default="False" description="True to run on the AutoDRIVE simulator instead of the car hardware (keep sim:=False)" />
+  <arg name="rviz" default="True" description="True to open RViz with autodrive:=True, to set the start pose with 2D Pose Estimate" />
   <arg name="loc_algorithm" default="slam" description="'slam' / 'synpf' to switch localisation algorithm" />
   <arg name="use_ekf2" default="False" description="True to enable EKF2 global fusion (Cartographer pose + EKF1 velocity)" />
   <arg name="use_pose_graph_fix" default="False" description="True to use f110_2d_loc_pgfix.lua with stronger odometry weights and more loop closures" />
@@ -45,6 +46,9 @@
       <arg name="mux_config" value="$(var mux_config)" />
       <arg name="map_path" value="$(var map_path)" />
     </include>
+    <group if="$(var autodrive)">
+      <node pkg="rviz2" exec="rviz2" name="rviz" args="-d $(find-pkg-share stack_master)/config/SIM/sim.rviz" if="$(var rviz)" />
+    </group>
 
     <!-- launch SE -->
     <include file="$(find-pkg-share state_estimation)/launch/state_estimation_launch.xml">
