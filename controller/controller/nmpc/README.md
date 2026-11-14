@@ -30,6 +30,10 @@ model's original 0.256 m assumption. It supplies separate speed/steering-rate
 weights and enforces steering-rate bounds inside the optimizer as well as the
 existing command checks. The provided solver's IPOPT options remain unchanged.
 
+A negative `speed_min` lets NMPC predict and command reverse motion. The
+planner reference still follows the raceline forward. The supplied presets
+use `speed_min: 0.0` for forward-only operation.
+
 ## Stack integration
 
 NMPC takes the existing map pose, odometry speed, and local waypoint array.

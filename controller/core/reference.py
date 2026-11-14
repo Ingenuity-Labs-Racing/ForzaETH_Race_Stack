@@ -14,7 +14,7 @@ REQUIRED = ('horizon', 'dt', 'wheelbase', 'state_weights',
             'steering_rate_min', 'steering_rate_max')
 
 
-def validate_config(config):
+def validate_config(config, *, allow_reverse=False):
     missing = [key for key in REQUIRED if config.get(key) is None]
     if missing:
         raise ValueError('Missing Predictive controller parameters: ' + ', '.join(missing))
@@ -35,8 +35,10 @@ def validate_config(config):
         if key == 'input_weights' and np.any(weights <= 0):
             raise ValueError('input_weights must be positive for a strictly convex QP')
     bounds = np.array([config[key] for key in ('speed_min', 'speed_max', 'steering_min', 'steering_max')])
-    if not np.all(np.isfinite(bounds)) or not (0 <= bounds[0] < bounds[1]):
-        raise ValueError('speed bounds must be finite with 0 <= min < max')
+    if not np.all(np.isfinite(bounds)) or not (bounds[0] < bounds[1] and bounds[1] > 0):
+        raise ValueError('speed bounds must be finite with min < max and max > 0')
+    if not allow_reverse and bounds[0] < 0:
+        raise ValueError('speed_min must be nonnegative for a forward-only controller')
     if not (-np.pi / 2 < bounds[2] <= 0 <= bounds[3] < np.pi / 2) or bounds[2] == bounds[3]:
         raise ValueError('steering bounds must straddle zero and lie inside +/- pi/2')
     rates = np.array([config['steering_rate_min'], config['steering_rate_max']])
@@ -59,14 +61,15 @@ class PredictiveResult:
 
 
 class PredictiveTracker:
-    def __init__(self, config, solver_factory, *, track_constraints=False):
+    def __init__(self, config, solver_factory, *, track_constraints=False, allow_reverse=False):
         self.config = config
         self.track_constraints = track_constraints
+        self.allow_reverse = allow_reverse
         self.solver = None
         self.error = ''
         self.reset()
         try:
-            validate_config(config)
+            validate_config(config, allow_reverse=allow_reverse)
             self.solver = solver_factory(config)
         except Exception as exc:
             self.error = str(exc)
@@ -179,7 +182,7 @@ class PredictiveTracker:
             pose = np.asarray(pose, dtype=float).reshape(3)
             if not np.all(np.isfinite(pose)) or not np.isfinite(speed):
                 raise ValueError('Pose or velocity is invalid')
-            if speed < -1e-6:
+            if speed < -1e-6 and not (self.allow_reverse and self.config['speed_min'] < 0):
                 raise ValueError('Reverse motion is not supported by this adapter')
             control_dt = self.config['dt'] if control_dt is None else control_dt
             if not np.isfinite(control_dt) or control_dt <= 0:

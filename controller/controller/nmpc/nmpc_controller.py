@@ -5,7 +5,7 @@ from core.reference import PredictiveTracker, validate_config as validate_predic
 
 
 def validate_config(config):
-    validate_predictive_config(config)
+    validate_predictive_config(config, allow_reverse=True)
     if config['solver_plugin'] != 'ipopt':
         raise ValueError('NMPC requires the CasADi ipopt NLP plugin')
     if not isinstance(config.get('track_constraints_enabled', False), bool):
@@ -50,4 +50,5 @@ class NMPCController(PredictiveTracker):
             validate_config(parameters)
             return solver_factory(parameters)
         super().__init__(config, solver_factory=factory,
-                         track_constraints=config.get('track_constraints_enabled', False))
+                         track_constraints=config.get('track_constraints_enabled', False),
+                         allow_reverse=True)

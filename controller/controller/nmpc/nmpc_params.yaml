@@ -6,7 +6,7 @@ wheelbase: 0.3302                  # SIM lf + lr [m]
 state_weights: [100, 100, 100, 45] # [x, y, heading, steering]
 input_weights: [1800, 0.055]          # [speed, steering rate]
 terminal_weight_multiplier: 30.0
-speed_min: 0.0
+speed_min: 0.0                    # [m/s]; set a negative value to allow reverse commands
 speed_max: 7.0                    # [m/s]; independent of agmpc/agmpc_params.yaml
 steering_min: -0.4                 # [rad]
 steering_max: 0.4
