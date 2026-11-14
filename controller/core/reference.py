@@ -59,8 +59,9 @@ class PredictiveResult:
 
 
 class PredictiveTracker:
-    def __init__(self, config, solver_factory):
+    def __init__(self, config, solver_factory, *, track_constraints=False):
         self.config = config
+        self.track_constraints = track_constraints
         self.solver = None
         self.error = ''
         self.reset()
@@ -88,10 +89,12 @@ class PredictiveTracker:
         self.steering_angle = float(steering)
         self.last_diagnostics = {}
 
-    def build_reference(self, pose, speed, waypoints):
+    def build_reference(self, pose, speed, waypoints, *, include_track_bounds=False):
         """Time-sample x/y/heading/speed/curvature along the local path.
 
-        Stack columns: x, y, speed, track ratio, s, curvature, heading, acceleration.
+        Stack columns: x, y, speed, track ratio, s, curvature, heading, acceleration,
+        left boundary distance, right boundary distance. The last two are required
+        only when returning the lateral bounds for future prediction steps.
         Use geometric arc length so track s wrapping needs no special handling.
         Refuse to extrapolate a moving reference beyond the available path.
         """
@@ -127,6 +130,18 @@ class PredictiveTracker:
         curvature = np.interp(samples, arc, points[:, 5])
         controls = np.vstack([velocities[:-1], velocities[:-1] * curvature[:-1],
                               np.diff(ref[3]) / cfg['dt']])
+        if include_track_bounds:
+            if points.shape[1] < 10:
+                raise ValueError('Track constraints require left and right waypoint distances')
+            widths = points[:, 8:10]
+            if not np.all(np.isfinite(widths)) or np.any(widths < 0) or np.any(widths.sum(axis=1) <= 0):
+                raise ValueError('Invalid left or right waypoint distances')
+            margin = cfg.get('track_margin_m', 0.0)
+            lower = margin - np.interp(samples[1:], arc, widths[:, 1])
+            upper = np.interp(samples[1:], arc, widths[:, 0]) - margin
+            if np.any(lower >= upper):
+                raise ValueError('Track corridor is too narrow for the configured margin')
+            return ref, controls, np.vstack((lower, upper))
         return ref, controls
 
     def compensate_pose(self, pose, speed, pose_age_s=0.0):
@@ -174,14 +189,21 @@ class PredictiveTracker:
             pose = self.compensate_pose(pose, speed, pose_age_s)
             self.last_diagnostics.update(prediction_pose_x=float(pose[0]), prediction_pose_y=float(pose[1]),
                                          prediction_pose_yaw=float(pose[2]), failure_stage='reference')
-            reference, controls = self.build_reference(pose, speed, waypoints)
+            solve_options = {}
+            if self.track_constraints:
+                reference, controls, track_bounds = self.build_reference(
+                    pose, speed, waypoints, include_track_bounds=True)
+                solve_options['track_bounds'] = track_bounds
+            else:
+                reference, controls = self.build_reference(pose, speed, waypoints)
             self.last_diagnostics.update(reference_local_index=self.last_reference_index,
                 reference_x=float(reference[0, 0]), reference_y=float(reference[1, 0]),
                 reference_yaw=float(reference[2, 0]), reference_steering=float(reference[3, 0]),
                 reference_speed=float(controls[0, 0]), reference_steering_rate=float(controls[2, 0]),
                 failure_stage='solve')
             start = solve_start = time.perf_counter()
-            command = np.asarray(self.solver.solve(np.r_[pose, self.steering_angle], reference, controls)).reshape(2)
+            command = self.solver.solve(np.r_[pose, self.steering_angle], reference, controls, **solve_options)
+            command = np.asarray(command).reshape(2)
             self.last_diagnostics.update(solve_time_s=time.perf_counter() - start)
             solve_limit = self.config.get('max_solve_time')
             if solve_limit is not None and time.perf_counter() - start > solve_limit:

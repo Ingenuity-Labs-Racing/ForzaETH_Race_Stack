@@ -32,7 +32,8 @@ YAML-only changes need a new launch.
 ControllerInputs contains pose [x,y,yaw], speed, local waypoints, normalized
 behavior, command timestep and pose age, plus optional Frenet state,
 acceleration, opponent/obstacles, track length and LiDAR. Existing waypoint
-columns remain x, y, speed, track ratio, s, curvature, heading, acceleration.
+columns are x, y, speed, track ratio, s, curvature, heading, acceleration,
+d_left, and d_right. The last two give edge distances in meters.
 ControllerResult returns speed in m/s, steering angle in radians, validity,
 reason, optional steering rate and diagnostics.
 

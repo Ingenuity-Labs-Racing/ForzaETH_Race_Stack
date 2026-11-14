@@ -88,7 +88,7 @@ class BycicleModel:
         self.symbolic = FirstOrderModel(dynamics, cost, self.dt, params)
     
 class NonlinearMPC:
-    def __init__(self, model_config={}, dt=0.05):
+    def __init__(self, model_config={}, dt=0.05, *, track_constraints=False):
         config = model_config
         # dynamics
         self.model = BycicleModel(config, dt=dt).symbolic
@@ -97,6 +97,7 @@ class NonlinearMPC:
         self.nState = self.model.nx  # 4 (x, y, theta,phi)
         self.nControl = self.model.nu  # 2 (v, steering_ratio)
         self.solve_time = 0.0
+        self.track_constraints = track_constraints
         self._opti = None
         self.setup_solver()
         self.set_control_bound()
@@ -157,6 +158,15 @@ class NonlinearMPC:
                 u_var[:, i],
             )
             opti.subject_to(x_var[:, i + 1] == x_next)
+
+        if self.track_constraints:
+            self._track_bounds_param = opti.parameter(2, N)
+            dx = x_var[0, 1:] - ref_state[0, 1:]
+            dy = x_var[1, 1:] - ref_state[1, 1:]
+            heading = ref_state[2, 1:]
+            self._lateral_offset = -ca.sin(heading) * dx + ca.cos(heading) * dy
+            opti.subject_to(opti.bounded(self._track_bounds_param[0, :], self._lateral_offset,
+                                         self._track_bounds_param[1, :]))
 
         Q = ca.DM(self.Q)
         R = ca.DM(self.R)
@@ -220,7 +230,7 @@ class NonlinearMPC:
         # parameter, while other consumers may inspect ``model.dt``.
         self.model.dt = dt
 
-    def solve(self, state):
+    def solve(self, state, *, track_bounds=None):
         """
         state: [x, y, theta,phi]
         t: time -> index of reference trajectory (t = k * dt)
@@ -241,7 +251,20 @@ class NonlinearMPC:
         self._opti.set_value(self._phi_min_param, self.phi_min)
         self._opti.set_value(self._phi_max_param, self.phi_max)
 
+        if self.track_constraints:
+            bounds = np.asarray(track_bounds, dtype=float)
+            if (bounds.shape != (2, self.N) or not np.all(np.isfinite(bounds))
+                    or np.any(bounds[0] >= bounds[1])):
+                raise ValueError('Invalid NMPC track corridor bounds')
+            self._opti.set_value(self._track_bounds_param, bounds)
+
         sol = self._opti.solve()
+        if self.track_constraints:
+            offset = np.asarray(sol.value(self._lateral_offset)).reshape(-1)
+            tolerance = 1e-6  # Allow numerical solver residuals, in meters.
+            if (not np.all(np.isfinite(offset)) or np.any(offset < bounds[0] - tolerance)
+                    or np.any(offset > bounds[1] + tolerance)):
+                raise ValueError('NMPC solution violates the track corridor')
         u = sol.value(self._u_var[:, 0])
         self.solve_time = time.time() - start_time
         return u

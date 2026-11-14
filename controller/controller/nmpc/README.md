@@ -56,6 +56,26 @@ global tracking only; unsupported behaviors produce a zero command.
 Its tracker shares solver-independent reference mechanics with AGMPC and
 does not inherit from the geometric-controller implementation.
 
+## Track corridor
+
+Set `track_constraints_enabled: true` in the NMPC preset or under
+`controllers.NMPC` in the evaluation YAML. Both presets default to off.
+`track_margin_m` defaults to 0.20 m and is subtracted from the available
+distance on each side. Choose it to account for the vehicle footprint relative
+to the modeled position and the extra clearance you want.
+
+The controller samples the left and right waypoint distances at the same
+locations as the reference positions and headings. At each future step
+(including the terminal state), IPOPT bounds the predicted position along
+the reference's left-pointing normal. The fixed initial state is excluded.
+The solver builds these constraints once and updates their bounds each cycle.
+Missing or invalid corridor data, a corridor narrower than the configured
+clearance, or an infeasible solve trigger the existing zero-command behavior.
+
+The bounds approximate the local track edges and apply to the modeled position
+at discrete prediction steps. Check footprint clearance and motion between
+steps in simulation before using the feature on hardware.
+
 ## Run
 
 Inside the ROS 2 container, build/supply the updated packages once:

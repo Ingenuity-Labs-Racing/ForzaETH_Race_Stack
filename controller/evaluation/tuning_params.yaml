@@ -63,6 +63,8 @@ controllers:
     steering_rate_min: -3.2  # rad/s
     steering_rate_max: 3.2  # rad/s
     solver_plugin: ipopt
+    track_constraints_enabled: false  # Enable hard lateral bounds for predicted positions
+    track_margin_m: 0.20  # m; clearance from each edge to the modeled position
     max_solve_time: null  # s; null disables the solve-duration limit
     input_timeout: null  # s; null disables the input-age limit
     latency_compensation_s: 0.0  # s; 0 disables compensation

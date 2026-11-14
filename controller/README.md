@@ -220,7 +220,7 @@ In evaluation mode, the manager also publishes JSON samples on `/controller/eval
 3. Add a `ControllerSpec` entry in [core/controller_registry.py](core/controller_registry.py), defining its factory, configuration loader, default configuration path, supported behaviors and required inputs.
 4. Add focused tests under `test/`, rebuild `controller`, and add its parameter block under `controllers.<NAME>` in the evaluation YAML.
 
-The shared input object includes pose, speed, local waypoints, behavior, control timestep and pose age, plus optional Frenet state, acceleration, obstacles/opponent, track length and scan. Waypoint array columns remain `x, y, speed, track ratio, s, curvature, heading, acceleration`.
+The shared input object includes pose, speed, local waypoints, behavior, control timestep and pose age, plus optional Frenet state, acceleration, obstacles/opponent, track length and scan. Waypoint array columns are `x, y, speed, track ratio, s, curvature, heading, acceleration, d_left, d_right`. The last two give edge distances in meters.
 
 Optional registry report capabilities `solve_time` and `constraints` enable the corresponding metrics. Reference descriptions and plot labels also come from the registry. This keeps algorithm-specific branches out of the manager and evaluator.
 

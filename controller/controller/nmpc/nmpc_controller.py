@@ -8,6 +8,11 @@ def validate_config(config):
     validate_predictive_config(config)
     if config['solver_plugin'] != 'ipopt':
         raise ValueError('NMPC requires the CasADi ipopt NLP plugin')
+    if not isinstance(config.get('track_constraints_enabled', False), bool):
+        raise ValueError('track_constraints_enabled must be a boolean')
+    margin = config.get('track_margin_m', 0.0)
+    if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin < 0:
+        raise ValueError('track_margin_m must be finite and nonnegative')
 
 
 class NMPCBackend:
@@ -15,7 +20,8 @@ class NMPCBackend:
     def __init__(self, config):
         # Imported only when NMPC is configured; other controllers do not load IPOPT.
         from .solver import NonlinearMPC
-        self.optimizer = NonlinearMPC(model_config={'wheelbase': config['wheelbase']}, dt=config['dt'])
+        self.optimizer = NonlinearMPC(model_config={'wheelbase': config['wheelbase']}, dt=config['dt'],
+                                      track_constraints=config.get('track_constraints_enabled', False))
         self.optimizer.setup_solver(q=config['state_weights'], R=config['input_weights'],
                                     N=config['horizon'],
                                     terminal_state_weight_multiplier=config['terminal_weight_multiplier'])
@@ -27,14 +33,14 @@ class NMPCBackend:
         self.optimizer._build_optimizer()
         self.dt = config['dt']
 
-    def solve(self, current, reference, controls):
+    def solve(self, current, reference, controls, *, track_bounds=None):
         # Common controls are [v, yaw_rate, phi_dot]. NMPC directly uses [v, phi_dot].
         self.optimizer.update_ref_traj(reference, controls[[0, 2], :], self.dt)
         # Seed the nonconvex NLP near the requested forward path in map coordinates.
         # This is a reference seed, not a warm start from the previous solution.
         self.optimizer._opti.set_initial(self.optimizer._x_var, reference)
         self.optimizer._opti.set_initial(self.optimizer._u_var, controls[[0, 2], :])
-        return np.asarray(self.optimizer.solve(current)).reshape(2)
+        return np.asarray(self.optimizer.solve(current, track_bounds=track_bounds)).reshape(2)
 
 
 class NMPCController(PredictiveTracker):
@@ -43,4 +49,5 @@ class NMPCController(PredictiveTracker):
         def factory(parameters):
             validate_config(parameters)
             return solver_factory(parameters)
-        super().__init__(config, solver_factory=factory)
+        super().__init__(config, solver_factory=factory,
+                         track_constraints=config.get('track_constraints_enabled', False))
