@@ -1,0 +1,18 @@
+# Nonlinear Cartesian bicycle MPC. CasADi/IPOPT; independent of AGMPC tuning.
+horizon: 5
+dt: 0.025                         # Stack command period [s]
+wheelbase: 0.3302                  # SIM lf + lr [m]
+# Initial cost weights from the supplied NMPC; these are not tuned for this car.
+state_weights: [100, 100, 100, 45] # [x, y, heading, steering]
+input_weights: [1800, 0.055]          # [speed, steering rate]
+terminal_weight_multiplier: 30.0
+speed_min: 0.0
+speed_max: 7.0                    # [m/s]; independent of agmpc/agmpc_params.yaml
+steering_min: -0.4                 # [rad]
+steering_max: 0.4
+steering_rate_min: -3.2             # [rad/s]
+steering_rate_max: 3.2
+solver_plugin: ipopt
+max_solve_time: null
+input_timeout: null
+latency_compensation_s: 0.0

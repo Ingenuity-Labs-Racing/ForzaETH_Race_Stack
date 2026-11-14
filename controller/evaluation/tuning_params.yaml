@@ -1,0 +1,94 @@
+# Single tuning file: choose controller above, then edit its block below.
+# Changes here affect evaluation trials; normal-stack preset files stay separate.
+map_name: crown
+controller: MAP
+laps: 2
+start_waypoint: 0
+output_directory: controller/evaluation/visualization
+startup_timeout_s: 120.0
+reset_timeout_s: 15.0
+trial_timeout_s: 180.0
+stall_timeout_s: 15.0
+data_timeout_s: 3.0
+stop_timeout_s: 5.0
+controllers:
+  MAP:
+    lookup_table: NUC2_hangar_pacejka
+    t_clip_min: 1  # m; minimum pursuit lookahead
+    t_clip_max: 5  # m; maximum pursuit lookahead
+    m_l1: 0.3
+    q_l1: 0.15
+    speed_lookahead: 0  # s
+    lat_err_coeff: 1
+    acc_scaler_for_steer: 1.0
+    dec_scaler_for_steer: 1.0
+    start_scale_speed: 7.0
+    end_scale_speed: 8.0
+    downscale_factor: 0.2
+    speed_lookahead_for_steer: 0  # s
+    trailing_gap: 1.5
+    trailing_p_gain: 0.5
+    trailing_i_gain: 0.001
+    trailing_d_gain: 0.2
+    blind_trailing_speed: 1.5
+    prioritize_dyn: true
+  AGMPC:
+    horizon: 20  # prediction steps
+    dt: 0.025  # s; prediction timestep, normally matching the 0.025 s command period
+    wheelbase: 0.3302  # m
+    state_weights: [10, 100.0, 98.01, 13.12]  # longitudinal, lateral, heading, steering
+    input_weights: [343.04, 8.02]  # speed, steering rate
+    terminal_weight_multiplier: 30.0
+    speed_min: 0.0  # m/s
+    speed_max: 10.0  # m/s; upper command bound
+    steering_min: -0.4  # rad
+    steering_max: 0.4  # rad
+    steering_rate_min: -3.2  # rad/s
+    steering_rate_max: 3.2  # rad/s
+    solver_plugin: qpoases
+    max_solve_time: null  # s; null disables the solve-duration limit
+    input_timeout: null  # s; null disables the input-age limit
+    latency_compensation_s: 0.0  # s; 0 disables compensation
+  NMPC:
+    horizon: 5  # prediction steps
+    dt: 0.025  # s; prediction timestep, normally matching the 0.025 s command period
+    wheelbase: 0.3302  # m
+    state_weights: [100, 100, 100, 45]  # x, y, heading, steering
+    input_weights: [1800, 0.055]  # speed, steering rate
+    terminal_weight_multiplier: 30.0
+    speed_min: 0.0  # m/s
+    speed_max: 7.0  # m/s; upper command bound
+    steering_min: -0.4  # rad
+    steering_max: 0.4  # rad
+    steering_rate_min: -3.2  # rad/s
+    steering_rate_max: 3.2  # rad/s
+    solver_plugin: ipopt
+    max_solve_time: null  # s; null disables the solve-duration limit
+    input_timeout: null  # s; null disables the input-age limit
+    latency_compensation_s: 0.0  # s; 0 disables compensation
+  PP:
+    t_clip_min: 1  # m; minimum pursuit lookahead
+    t_clip_max: 5  # m; maximum pursuit lookahead
+    m_l1: 0.3
+    q_l1: 0.15
+    speed_lookahead: 0  # s
+    lat_err_coeff: 1
+    acc_scaler_for_steer: 1.0
+    dec_scaler_for_steer: 1.0
+    start_scale_speed: 7.0
+    end_scale_speed: 8.0
+    downscale_factor: 0.2
+    speed_lookahead_for_steer: 0  # s
+    trailing_gap: 1.5
+    trailing_p_gain: 0.5
+    trailing_i_gain: 0.001
+    trailing_d_gain: 0.2
+    blind_trailing_speed: 1.5
+    prioritize_dyn: true
+  FTG:
+    debug: false
+    safety_radius: 30
+    max_lidar_dist: 9.0
+    max_speed: 5.0
+    range_offset: 180
+    track_width: 3
