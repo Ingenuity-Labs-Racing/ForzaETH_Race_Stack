@@ -201,6 +201,12 @@ The manager subscribes to these existing stack interfaces. Each registry entry d
 
 Commands are published on **`/drive`** as `ackermann_msgs/AckermannDriveStamped`: `drive.speed` in m/s and `drive.steering_angle` in radians. Optional lookahead and steering diagnostics are published by the manager.
 
+AGMPC and NMPC publish one `std_msgs/msg/Float64` sample on `/controller/solve_time_s` per timed solve in both normal and evaluation runs. The value is in seconds and includes the solver call and first-command extraction. Cycles that skip the solver produce no sample. Failed solves publish their elapsed time when available.
+
+```bash
+ros2 topic echo /controller/solve_time_s
+```
+
 In evaluation mode, the manager also publishes JSON samples on `/controller/evaluation/sample` and provides `/controller/evaluation/enable` (`std_srvs/SetBool`) and `/controller/evaluation/reset` (`std_srvs/Trigger`). Reset is accepted only while paused.
 
 ## Add a controller

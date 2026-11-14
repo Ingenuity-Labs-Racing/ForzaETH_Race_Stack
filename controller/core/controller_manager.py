@@ -16,7 +16,7 @@ from f110_msgs.msg import ObstacleArray, WpntArray, GapData
 from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
-from std_msgs.msg import String
+from std_msgs.msg import Float64, String
 from std_srvs.srv import SetBool, Trigger
 from rcl_interfaces.srv import GetParameters
 from visualization_msgs.msg import Marker, MarkerArray
@@ -119,6 +119,7 @@ class Controller(Node):
         self.adapters[self.mode] = self.adapter
         self.prioritize_dyn = self.adapter.config.get('prioritize_dyn', False)
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        self.solve_time_pub = self.create_publisher(Float64, '/controller/solve_time_s', 10)
         self.steering_pub = self.create_publisher(Marker, 'steering', 10)
         self.lookahead_pub = self.create_publisher(Marker, 'lookahead_point', 10)
         self.trailing_pub = self.create_publisher(Marker, 'trailing_opponent_marker', 10)
@@ -215,6 +216,7 @@ class Controller(Node):
 
     def run_controller(self):
         stage = 'state'
+        solve_time_s = None
         try:
             spec, adapter = self.selected_adapter()
             if adapter.error:
@@ -253,6 +255,7 @@ class Controller(Node):
                 raise ValueError('Nonfinite Frenet input')
             stage = 'control'
             result = adapter.step(inputs)
+            solve_time_s = result.diagnostics.get('solve_time_s')
             if not result.valid:
                 adapter.reset()
                 return result
@@ -267,7 +270,10 @@ class Controller(Node):
         except Exception as exc:
             if self.active_adapter is not None:
                 self.active_adapter.reset()
-            return ControllerResult(reason=str(exc), diagnostics={'failure_stage': stage})
+            diagnostics = {'failure_stage': stage}
+            if solve_time_s is not None:
+                diagnostics['solve_time_s'] = solve_time_s
+            return ControllerResult(reason=str(exc), diagnostics=diagnostics)
 
     def control_loop(self):
         if self.evaluation_mode and not self.evaluation_enabled:
@@ -278,6 +284,9 @@ class Controller(Node):
         if not result.valid:
             self.get_logger().warning(f'{self.mode} stopped: {result.reason}', throttle_duration_sec=1.)
         self.publish_command(result.speed if result.valid else 0., result.steering if result.valid else 0.)
+        solve_time_s = result.diagnostics.get('solve_time_s')
+        if solve_time_s is not None:
+            self.solve_time_pub.publish(Float64(data=float(solve_time_s)))
         if result.valid:
             self.publish_visuals(result.diagnostics)
 
