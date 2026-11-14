@@ -12,6 +12,7 @@ steering_min: -0.4                 # [rad]
 steering_max: 0.4
 steering_rate_min: -3.2             # [rad/s]
 steering_rate_max: 3.2
+max_delta_v_mps: null             # [m/s] Maximum speed change per step; null disables
 solver_plugin: ipopt
 track_constraints_enabled: true  # Enable hard lateral bounds for predicted positions
 track_margin_m: 0.20              # [m] Clearance from each edge to the modeled position

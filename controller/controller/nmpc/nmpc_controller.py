@@ -13,6 +13,10 @@ def validate_config(config):
     margin = config.get('track_margin_m', 0.0)
     if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin < 0:
         raise ValueError('track_margin_m must be finite and nonnegative')
+    delta_v = config.get('max_delta_v_mps')
+    if delta_v is not None and (isinstance(delta_v, bool) or not isinstance(delta_v, (int, float))
+                                or not np.isfinite(delta_v) or delta_v <= 0):
+        raise ValueError('max_delta_v_mps must be null or finite and positive')
 
 
 class NMPCBackend:
@@ -21,7 +25,8 @@ class NMPCBackend:
         # Imported only when NMPC is configured; other controllers do not load IPOPT.
         from .solver import NonlinearMPC
         self.optimizer = NonlinearMPC(model_config={'wheelbase': config['wheelbase']}, dt=config['dt'],
-                                      track_constraints=config.get('track_constraints_enabled', False))
+                                      track_constraints=config.get('track_constraints_enabled', False),
+                                      max_delta_v_mps=config.get('max_delta_v_mps'))
         self.optimizer.setup_solver(q=config['state_weights'], R=config['input_weights'],
                                     N=config['horizon'],
                                     terminal_state_weight_multiplier=config['terminal_weight_multiplier'])
@@ -33,14 +38,15 @@ class NMPCBackend:
         self.optimizer._build_optimizer()
         self.dt = config['dt']
 
-    def solve(self, current, reference, controls, *, track_bounds=None):
+    def solve(self, current, reference, controls, *, track_bounds=None, measured_speed=None):
         # Common controls are [v, yaw_rate, phi_dot]. NMPC directly uses [v, phi_dot].
         self.optimizer.update_ref_traj(reference, controls[[0, 2], :], self.dt)
         # Seed the nonconvex NLP near the requested forward path in map coordinates.
         # This is a reference seed, not a warm start from the previous solution.
         self.optimizer._opti.set_initial(self.optimizer._x_var, reference)
         self.optimizer._opti.set_initial(self.optimizer._u_var, controls[[0, 2], :])
-        return np.asarray(self.optimizer.solve(current, track_bounds=track_bounds)).reshape(2)
+        return np.asarray(self.optimizer.solve(current, track_bounds=track_bounds,
+                                              measured_speed=measured_speed)).reshape(2)
 
 
 class NMPCController(PredictiveTracker):
@@ -51,4 +57,5 @@ class NMPCController(PredictiveTracker):
             return solver_factory(parameters)
         super().__init__(config, solver_factory=factory,
                          track_constraints=config.get('track_constraints_enabled', False),
-                         allow_reverse=True)
+                         allow_reverse=True,
+                         use_measured_speed=config.get('max_delta_v_mps') is not None)

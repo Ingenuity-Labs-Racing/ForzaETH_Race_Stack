@@ -60,6 +60,17 @@ global tracking only; unsupported behaviors produce a zero command.
 Its tracker shares solver-independent reference mechanics with AGMPC and
 does not inherit from the geometric-controller implementation.
 
+## Speed change limit
+
+Set `max_delta_v_mps` in the NMPC preset or under `controllers.NMPC` in
+the evaluation YAML to a positive number to limit speed changes in either
+direction. For the first command, the limit is relative to the latest
+estimated forward speed. For subsequent commands, it is relative to the
+previous command in the prediction. For example, `0.05` m/s per step at a
+`0.025` s timestep corresponds to `2` m/s² between prediction commands.
+The default `null` disables the constraint. If the limit conflicts with
+the speed bounds or track corridor, the existing zero-command fallback applies.
+
 ## Track corridor
 
 Set `track_constraints_enabled: true` in the NMPC preset or under

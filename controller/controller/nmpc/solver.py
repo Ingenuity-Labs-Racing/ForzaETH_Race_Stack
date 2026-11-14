@@ -88,7 +88,7 @@ class BycicleModel:
         self.symbolic = FirstOrderModel(dynamics, cost, self.dt, params)
     
 class NonlinearMPC:
-    def __init__(self, model_config={}, dt=0.05, *, track_constraints=False):
+    def __init__(self, model_config={}, dt=0.05, *, track_constraints=False, max_delta_v_mps=None):
         config = model_config
         # dynamics
         self.model = BycicleModel(config, dt=dt).symbolic
@@ -98,6 +98,7 @@ class NonlinearMPC:
         self.nControl = self.model.nu  # 2 (v, steering_ratio)
         self.solve_time = 0.0
         self.track_constraints = track_constraints
+        self.max_delta_v_mps = max_delta_v_mps
         self._opti = None
         self.setup_solver()
         self.set_control_bound()
@@ -199,6 +200,13 @@ class NonlinearMPC:
         if self.phi_dot_min is not None and self.phi_dot_max is not None:
             opti.subject_to(opti.bounded(self.phi_dot_min, u_var[1, :], self.phi_dot_max))
 
+        if self.max_delta_v_mps is not None:
+            self._measured_speed_param = opti.parameter()
+            previous_speeds = ca.horzcat(self._measured_speed_param, u_var[0, :])[:, :N]
+            self._delta_v = u_var[0, :] - previous_speeds
+            limit = self.max_delta_v_mps
+            opti.subject_to(opti.bounded(-limit, self._delta_v, limit))
+
         opti.minimize(cost)
         opts_setting = {
             'ipopt.max_iter': 1000,
@@ -230,7 +238,7 @@ class NonlinearMPC:
         # parameter, while other consumers may inspect ``model.dt``.
         self.model.dt = dt
 
-    def solve(self, state, *, track_bounds=None):
+    def solve(self, state, *, track_bounds=None, measured_speed=None):
         """
         state: [x, y, theta,phi]
         t: time -> index of reference trajectory (t = k * dt)
@@ -258,7 +266,16 @@ class NonlinearMPC:
                 raise ValueError('Invalid NMPC track corridor bounds')
             self._opti.set_value(self._track_bounds_param, bounds)
 
+        if self.max_delta_v_mps is not None:
+            if measured_speed is None or not np.isfinite(measured_speed):
+                raise ValueError('NMPC delta-v constraint requires a finite measured speed')
+            self._opti.set_value(self._measured_speed_param, float(measured_speed))
+
         sol = self._opti.solve()
+        if self.max_delta_v_mps is not None:
+            delta_v = np.asarray(sol.value(self._delta_v))
+            if not np.all(np.isfinite(delta_v)) or np.any(np.abs(delta_v) > self.max_delta_v_mps + 1e-6):
+                raise ValueError('NMPC solution violates the delta-v constraint')
         if self.track_constraints:
             offset = np.asarray(sol.value(self._lateral_offset)).reshape(-1)
             tolerance = 1e-6  # Allow numerical solver residuals, in meters.

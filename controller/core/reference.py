@@ -61,10 +61,12 @@ class PredictiveResult:
 
 
 class PredictiveTracker:
-    def __init__(self, config, solver_factory, *, track_constraints=False, allow_reverse=False):
+    def __init__(self, config, solver_factory, *, track_constraints=False, allow_reverse=False,
+                 use_measured_speed=False):
         self.config = config
         self.track_constraints = track_constraints
         self.allow_reverse = allow_reverse
+        self.use_measured_speed = use_measured_speed
         self.solver = None
         self.error = ''
         self.reset()
@@ -193,6 +195,8 @@ class PredictiveTracker:
             self.last_diagnostics.update(prediction_pose_x=float(pose[0]), prediction_pose_y=float(pose[1]),
                                          prediction_pose_yaw=float(pose[2]), failure_stage='reference')
             solve_options = {}
+            if self.use_measured_speed:
+                solve_options['measured_speed'] = speed
             if self.track_constraints:
                 reference, controls, track_bounds = self.build_reference(
                     pose, speed, waypoints, include_track_bounds=True)
