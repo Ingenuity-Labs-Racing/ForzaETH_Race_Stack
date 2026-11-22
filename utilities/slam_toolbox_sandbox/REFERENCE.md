@@ -40,6 +40,13 @@ the static `base_link→laser` and `world→map` transforms, and starts the Foxg
 Restart the sim between localization runs: it's the only way to put the car back at its spawn
 pose.
 
+**One copy at a time.** `sim.launch.py` refuses to start if Gazebo is already running in the same
+Gazebo partition and ROS domain. The localizer launches do the same for a running localizer or
+`pose_error`. Two copies would publish two cars on the same topics: nothing crashes, but TF jumps
+between them and every error number is wrong. The error lists the old PIDs and the `kill -INT`
+command that stops them. To run a second copy on purpose, start it with its own `IGN_PARTITION`
+and `ROS_DOMAIN_ID`, as the benchmark does. The check is in `slam_toolbox_sandbox/instance_guard.py`.
+
 ### `mapping.launch.py`: build a SLAM Toolbox map
 
 ```bash
@@ -174,6 +181,58 @@ Output: `results/<date>_<time>[_iN]_<tag>/` with `<localizer>_speed_<v>_run<n>.{
 and `.csv` per run, plus the row in `results/summary.csv`. The exit code is non-zero if any run
 failed to start or finish its lap.
 
+- **Start failures are retried** up to 3 attempts per run (in parallel benchmarks AMCL sometimes
+  never publishes `map→odom`). The worker prints `RETRY n`, and the failed attempt's files are kept
+  as `*.failed<n>`. A run that fails all 3 attempts still gets a `summary.csv` row (`lap_done`
+  false, no metrics).
+- **autodrive runs on sim time**, so its stuck detector (no progress for 3 s) isn't fooled by a sim
+  running slower than real time. Its log ends with `wall_s=<seconds>`, for the real-time factor.
+
+### `scripts/run_speed_sweep.sh`: speed sweep
+
+```bash
+./scripts/run_speed_sweep.sh          # start, then shows live progress
+./scripts/run_speed_sweep.sh watch    # show progress again, from any container terminal
+./scripts/run_speed_sweep.sh stop     # abort
+```
+
+All three localizers at 17 speeds (0.20–1.00 m/s in 0.05 steps), one 3-lap run per speed: 51 runs,
+split over 3 parallel `eval_localization.sh` workers (`-i 1-3`; speeds balanced by driving time,
+starts 30 s apart). About 1.5–2.5 h. Results are tagged `speedsweep`.
+
+- **The workers are detached.** Ctrl+C or closing the terminal only stops the progress view. But the
+  Mac must stay **awake, lid open**: sleep freezes Docker, and the time jump on waking spoils the runs
+  in progress. Run `caffeinate -dims` on the host and keep it plugged in.
+- It refuses to start if the sweep is already running, or if results with the same tag exist. Use
+  `TAG=<name>` to start another one.
+- Overrides for testing the tooling: `TAG`, `LAPS`, `LOCALIZERS`, `SPEEDS_1/2/3` (empty = no worker).
+- Bookkeeping in `results/` (gitignored): `<tag>_worker<N>.log` (each worker's console), `<tag>.pids`,
+  `<tag>_plan.json`.
+
+The progress view (`scripts/sweep_progress.py`, tqdm) shows one overall bar and one line per worker,
+with the current localizer, speed and lap. The percentage is weighted by expected driving time, so a
+0.20 m/s run counts 5× a 1.0 m/s one. The ETA comes from each worker's pace so far.
+
+### `scripts/sweep_report.py`: speed sweep table and figure
+
+```bash
+python3 scripts/sweep_report.py --tag speedsweep   # works on any tag, also mid-sweep
+```
+
+| Output | Content |
+|---|---|
+| `results/<tag>_table.md` / `.csv` | One row per speed + "all speeds". Per localizer: lost (lap it happened), position RMSE and p95 [cm], heading RMSE [°], lap 1→last change [cm] |
+| `results/<tag>_runs.csv` | One row per run with every metric, also per lap, coverage, longest gap, real-time factor |
+| `results/plots/<tag>.png` | Position RMSE, heading RMSE (log scales) and lap-to-lap change over commanded speed; whiskers = per-lap range, ✕ = lost track |
+
+- Metrics cover only the **driving window**, from the car's first to its last movement. Every run
+  logs ~10 s parked after the laps, a share that changes with speed. So these numbers are a little
+  higher than the `summary.csv` ones for the same runs.
+- **† flags** a run with a gap over 1 s without an estimate, an autodrive stuck event, a sim below
+  0.5× real time, unfinished laps, a retried start, or an outside `/initialpose`. The reasons are
+  listed under the table.
+- Runs still in progress (no `summary.csv` row yet, files changing) are left out and counted.
+
 ### `scripts/plot_results.py`: charts
 
 ```bash
@@ -240,11 +299,16 @@ from Gazebo.
 | `slam_toolbox_sandbox/autodrive.py` | Pure pursuit autopilot on ground truth |
 | `slam_toolbox_sandbox/pose_error.py` | Error against ground truth |
 | `slam_toolbox_sandbox/scan_match_localizer.py` | Fixed-map scan-to-map localizer |
+| `slam_toolbox_sandbox/car_marker.py` | Draws the car at its true pose for Foxglove / RViz (`/car_marker`) |
+| `slam_toolbox_sandbox/instance_guard.py` | Stops launch files from starting a second sim or localizer |
 | `worlds/victoria.sdf` | Track walls generated from `stack_master/maps/Victoria` |
 | `models/car.sdf` | Diff-drive car with lidar, odometry and ground truth |
 | `maps/victoria_ref.*` | Committed SLAM Toolbox reference map (pose graph + image) |
 | `scripts/eval_localization.sh` | Benchmark runner |
 | `scripts/plot_results.py` | Benchmark charts |
+| `scripts/run_speed_sweep.sh` | Speed sweep: 3 parallel benchmark workers, `watch` / `stop` |
+| `scripts/sweep_progress.py` | Live tqdm progress of a sweep |
+| `scripts/sweep_report.py` | Speed sweep table and figure |
 | `results/summary.csv` | One row per benchmark run (committed) |
 | `foxglove/sandbox_layout.json` | Foxglove layout |
 | `rviz/sandbox.rviz` | RViz config |

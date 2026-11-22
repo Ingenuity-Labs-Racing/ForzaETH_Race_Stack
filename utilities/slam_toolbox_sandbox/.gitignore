@@ -1,2 +1,6 @@
 # benchmark logs (results/summary.csv is kept)
 results/*/
+# speed sweep bookkeeping (scripts/run_speed_sweep.sh)
+results/*_worker*.log
+results/*.pids
+results/*_plan.json

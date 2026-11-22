@@ -35,9 +35,18 @@ Visualization Manager:
       Color Transformer: FlatColor
       Color: 255; 40; 40
       Decay Time: 0
-    - Class: rviz_default_plugins/Odometry
+    - Class: rviz_default_plugins/MarkerArray
       Name: Car (true pose)
       Enabled: true
+      Topic:
+        Value: /car_marker
+        Depth: 5
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/Odometry
+      Name: Car arrow (true pose)
+      Enabled: false
       Topic:
         Value: /ground_truth
         Depth: 5

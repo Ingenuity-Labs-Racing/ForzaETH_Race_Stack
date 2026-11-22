@@ -23,7 +23,8 @@
       "topics": {
         "/map": { "visible": true, "colorMode": "map", "alpha": 1 },
         "/scan": { "visible": true, "pointSize": 5, "pointShape": "circle", "colorMode": "flat", "flatColor": "#ff3b3bff" },
-        "/ground_truth": { "visible": true, "type": "arrow", "arrowScale": [0.7, 0.18, 0.18], "color": "#3ddc84ff" },
+        "/car_marker": { "visible": true },
+        "/ground_truth": { "visible": false, "type": "arrow", "arrowScale": [0.7, 0.18, 0.18], "color": "#3ddc84ff" },
         "/odom": { "visible": false }
       },
       "layers": {

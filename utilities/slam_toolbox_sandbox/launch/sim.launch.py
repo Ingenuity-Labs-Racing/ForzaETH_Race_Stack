@@ -11,8 +11,11 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from slam_toolbox_sandbox.instance_guard import SIM, fail_if_running
+
 
 def launch_setup(context):
+    fail_if_running('sim', SIM)
     pkg = get_package_share_directory('slam_toolbox_sandbox')
     world = os.path.join(pkg, 'worlds', LaunchConfiguration('world').perform(context) + '.sdf')
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
@@ -70,6 +73,13 @@ def launch_setup(context):
     )
 
     actions = [gazebo, TimerAction(period=3.0, actions=[spawn]), bridge, laser_tf, world_tf]
+    if foxglove or rviz:
+        # Draws the car at its true pose on /car_marker (only needed when something displays it)
+        actions.append(Node(
+            package='slam_toolbox_sandbox', executable='car_marker', output='screen',
+            parameters=[{'scale': float(LaunchConfiguration('car_scale').perform(context)),
+                         'use_sim_time': True}],
+        ))
     if foxglove:
         # Streams all topics to the Foxglove app on the host: ws://localhost:8765
         actions.append(Node(
@@ -94,5 +104,6 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value='false', description='open the Gazebo window (needs working OpenGL)'),
         DeclareLaunchArgument('rviz', default_value='false', description='RViz in the VNC display (fallback for Foxglove)'),
         DeclareLaunchArgument('foxglove', default_value='true', description='bridge for the Foxglove app: ws://localhost:8765'),
+        DeclareLaunchArgument('car_scale', default_value='1.0', description='size of the drawn car, 1.0 = true size'),
         OpaqueFunction(function=launch_setup),
     ])

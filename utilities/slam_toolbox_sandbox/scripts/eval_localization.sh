@@ -70,6 +70,7 @@ fi
 OUT=$SANDBOX/results/$(date +%Y-%m-%d_%H%M%S)${INSTANCE:+_i$INSTANCE}_$TAG
 SUMMARY=$SANDBOX/results/summary.csv
 mkdir -p "$OUT"
+echo "Output: $OUT"  # read by sweep_progress.py
 [ -f "$SUMMARY" ] || echo "date,tag,localizer,commit,params,map,speed,run,laps,lap_done,samples,pos_rmse,pos_p95,pos_max,yaw_rmse_deg,yaw_max_deg,run_dir" > "$SUMMARY"
 # safe.directory: inside the container the repo belongs to the host user
 GIT="git -c safe.directory=* -C $SANDBOX"
@@ -78,7 +79,7 @@ COMMIT=$($GIT rev-parse --short HEAD)$($GIT diff --quiet HEAD -- . || echo "+dir
 # Kills only processes started in this partition (pkill -f could hit the user's session or
 # another parallel benchmark).
 cleanup() {
-    for p in $(pgrep -f "ign gazebo|parameter_bridge|static_transform|foxglove_bridge|ros2 launch|autodrive|slam_toolbox_node|nav2_map_server/map_server|nav2_amcl/amcl|lifecycle_manager|scan_match_localizer|pose_error|ros2 bag"); do
+    for p in $(pgrep -f "ign gazebo|parameter_bridge|static_transform|foxglove_bridge|ros2 launch|autodrive|car_marker|slam_toolbox_node|nav2_map_server/map_server|nav2_amcl/amcl|lifecycle_manager|scan_match_localizer|pose_error|ros2 bag"); do
         [ $p = $$ ] && continue
         tr "\0" "\n" < /proc/$p/environ 2>/dev/null | grep -qx "IGN_PARTITION=$IGN_PARTITION" && kill -9 $p 2>/dev/null
     done
@@ -98,6 +99,25 @@ wait_for() {
 # autodrive declares speed/laps as doubles: "3" would be rejected as an integer
 float() { python3 -c "print(float($1))"; }
 
+# Starts the sim and the localizer of one run (uses LOG, LAUNCH, L_MAP, PARAMS_ARG). On failure it
+# cleans up, sets START_ERR and returns non-zero, so the run can be retried: in parallel benchmarks
+# AMCL sometimes never publishes map->odom.
+start_run() {
+    START_ERR=""
+    ros2 launch slam_toolbox_sandbox sim.launch.py foxglove:=$FOXGLOVE > $LOG.sim.log 2>&1 < /dev/null &
+    disown  # no "Killed" messages when cleanup stops it
+    if ! wait_for 90 timeout 5 ros2 topic echo --once /ground_truth; then
+        START_ERR="sim did not start (see $LOG.sim.log)"; cleanup; return 1
+    fi
+    ros2 launch slam_toolbox_sandbox $LAUNCH map:=$L_MAP $PARAMS_ARG csv:=$LOG.csv \
+        > $LOG.loc.log 2>&1 < /dev/null &
+    LOC_PID=$!
+    disown
+    if ! wait_for 60 grep -q "position: now" $LOG.loc.log; then
+        START_ERR="localization did not start (see $LOG.loc.log)"; cleanup; return 1
+    fi
+}
+
 FAILED=0
 cleanup
 for LOCALIZER in $LOCALIZERS; do
@@ -115,18 +135,18 @@ for SPEED in $SPEEDS; do for RUN in $(seq $REPEATS); do
     LOG=$OUT/${LOCALIZER}_speed_${SPEED}_run$RUN
     echo "[$TAG] $LOCALIZER, speed $SPEED m/s, run $RUN/$REPEATS ..."
 
-    ros2 launch slam_toolbox_sandbox sim.launch.py foxglove:=$FOXGLOVE > $LOG.sim.log 2>&1 < /dev/null &
-    disown  # no "Killed" messages when cleanup stops it
-    if ! wait_for 90 timeout 5 ros2 topic echo --once /ground_truth; then
-        echo "  FAIL: sim did not start (see $LOG.sim.log)"; FAILED=1; cleanup; continue
-    fi
-
-    ros2 launch slam_toolbox_sandbox $LAUNCH map:=$L_MAP $PARAMS_ARG csv:=$LOG.csv \
-        > $LOG.loc.log 2>&1 < /dev/null &
-    LOC_PID=$!
-    disown
-    if ! wait_for 60 grep -q "position: now" $LOG.loc.log; then
-        echo "  FAIL: localization did not start (see $LOG.loc.log)"; FAILED=1; cleanup; continue
+    # up to 3 attempts; the logs of a failed attempt are kept as *.failed<N>
+    for TRY in 1 2 3; do
+        start_run && break
+        [ $TRY = 3 ] && break
+        echo "  RETRY $TRY: $START_ERR"
+        for f in $LOG.sim.log $LOG.loc.log $LOG.csv; do [ -f $f ] && mv $f $f.failed$TRY; done
+    done
+    if [ -n "$START_ERR" ]; then
+        echo "  FAIL: $START_ERR"; FAILED=1
+        # a row without metrics, so failed runs show up in the results too
+        echo "$(date +%F),$TAG,$LOCALIZER,$COMMIT,$(basename $PARAMS),$(basename $L_MAP .yaml),$SPEED,$RUN,$LAPS,false,0,,,,,,$(basename $OUT)" >> "$SUMMARY"
+        continue
     fi
 
     if [ "$BAG" = true ]; then
@@ -135,10 +155,14 @@ for SPEED in $SPEEDS; do for RUN in $(seq $REPEATS); do
         sleep 2
     fi
 
-    # generous timeout: the Victoria lap is ~80 m and the sim may run slower than real time
+    # generous timeout: the Victoria lap is ~37 m and the sim may run slower than real time.
+    # Sim time keeps autodrive's 3 s stuck detector honest when the sim is slow. Line-buffered
+    # logging so the "X.XX laps" progress lines reach the log right away (sweep_progress.py).
     LAP_TIMEOUT=$(python3 -c "print(int($LAPS * 240 / $SPEED + 60))")
-    timeout $LAP_TIMEOUT ros2 run slam_toolbox_sandbox autodrive --ros-args -p speed:=$(float $SPEED) -p laps:=$(float $LAPS) \
-        > $LOG.autodrive.log 2>&1
+    AUTODRIVE_START=$SECONDS
+    RCUTILS_LOGGING_BUFFERED_STREAM=1 timeout $LAP_TIMEOUT ros2 run slam_toolbox_sandbox autodrive --ros-args \
+        -p speed:=$(float $SPEED) -p laps:=$(float $LAPS) -p use_sim_time:=true > $LOG.autodrive.log 2>&1
+    echo "wall_s=$((SECONDS - AUTODRIVE_START))" >> $LOG.autodrive.log  # for the real-time factor
     LAP_DONE=false; grep -q "Done:" $LOG.autodrive.log && LAP_DONE=true
 
     if [ "$BAG" = true ]; then

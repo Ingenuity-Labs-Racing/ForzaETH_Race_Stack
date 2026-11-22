@@ -13,11 +13,14 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from slam_toolbox_sandbox.instance_guard import LOCALIZERS, fail_if_running
+
 DEFAULT_MAP = os.path.expanduser('~/ws/src/race_stack/stack_master/maps/Victoria/Victoria.yaml')
 VICTORIA_START = ('-7.6016', '-2.5328', '-0.0638')
 
 
 def launch_setup(context):
+    fail_if_running('localizer', LOCALIZERS)
     def num(name):
         return float(LaunchConfiguration(name).perform(context))
 

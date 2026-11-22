@@ -8,15 +8,19 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+from slam_toolbox_sandbox.instance_guard import LOCALIZERS, fail_if_running
 
 
 def generate_launch_description():
     pkg = get_package_share_directory('slam_toolbox_sandbox')
     return LaunchDescription([
         DeclareLaunchArgument('params', default_value=os.path.join(pkg, 'config', 'mapping.yaml')),
+        # runs first: aborts before any node starts if a localizer is already running
+        OpaqueFunction(function=lambda context: fail_if_running('localizer', LOCALIZERS) or []),
         Node(
             package='slam_toolbox', executable='async_slam_toolbox_node', name='slam_toolbox', output='screen',
             parameters=[LaunchConfiguration('params'), {'use_sim_time': True}],

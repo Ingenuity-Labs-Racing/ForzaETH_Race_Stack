@@ -181,6 +181,9 @@ rebuilding. Rebuild only after adding a new file.
 - **Foxglove (default).** `sim.launch.py` starts a Foxglove bridge. In the Foxglove app on the host,
   choose *Open connection* → `ws://localhost:8765`, then *Layout → Import from file* →
   `foxglove/sandbox_layout.json`.
+- **The car** is drawn by `car_marker` (started with Foxglove or RViz) on `/car_marker`: the
+  `car.sdf` shapes at the `/ground_truth` pose, with a yellow strip on the front. It's true size;
+  `car_scale:=2.0` on `sim.launch.py` draws it bigger (it then looks closer to the walls than it is).
 - **RViz (fallback).** Start the sim with `rviz:=true`. RViz needs a display: on Linux, X
   forwarding from the container setup works. On a Mac, run `.docker_utils/start_vnc_display.sh`
   inside the container, then `open vnc://localhost:5901` on the host (password `racer`). Software
@@ -305,6 +308,18 @@ Don't use Foxglove's pose tool during a benchmark: it publishes `/initialpose` a
 localizer. To test a parameter change, copy the config, edit it and pass it with `-p` for one
 localizer at a time.
 
+**Speed sweep:** all three localizers at 17 speeds from 0.20 to 1.00 m/s, one 3-lap run each, on 3
+parallel workers (about 1.5–2.5 h), with a live progress bar:
+
+```bash
+./scripts/run_speed_sweep.sh                         # Ctrl+C only stops watching; `watch` re-attaches, `stop` aborts
+python3 scripts/sweep_report.py --tag speedsweep     # table: results/speedsweep_table.md, figure: results/plots/speedsweep.png
+```
+
+Keep the Mac awake with the lid open for the whole sweep (`caffeinate -dims` on the host, plugged
+in): sleep freezes Docker and spoils the runs in progress. Details are in
+[REFERENCE.md](REFERENCE.md#scriptsrun_speed_sweepsh-speed-sweep).
+
 ---
 
 ## Results so far
@@ -361,6 +376,11 @@ odometry: read [Gaps](#gaps) before drawing conclusions about the car.
 
 ### Tooling and open issues
 
+- **One sim per partition (guarded).** A forgotten sim from an earlier session plus a new one in
+  the same ROS domain gave two cars on `/scan`, `/tf` and `/ground_truth`: no crash, just a
+  wandering car and wrong error plots. The launch files now refuse to start a second sim or
+  localizer in the same Gazebo partition and ROS domain (see
+  [REFERENCE.md](REFERENCE.md#simlaunchpy-start-the-simulation)).
 - **Not connected to the race stack.** Nothing here publishes `/car_state/*` or Frenet odometry,
   so the stack's planner and controller can't run on these localizers yet.
 - **No global re-localization.** The scan matcher only searches ~0.5 m around its current guess,
