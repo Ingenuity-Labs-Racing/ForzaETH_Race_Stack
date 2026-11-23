@@ -1,0 +1,13 @@
+\begin{tabular}{llrrrr}
+\toprule
+\makecell[lb]{{Localizer}} & \makecell[lb]{{Configuration}} & \makecell[rb]{{RMSE} \\ {[cm]}} & \makecell[rb]{{p95} \\ {[cm]}} & \makecell[rb]{{Heading} \\ {RMSE [$^\circ$]}} & \makecell[rb]{{Lost} \\ {track}} \\
+\midrule
+Scan matcher & filled map & 5.1 & 13.9 & 0.6 & 0/17 \\
+\midrule
+AMCL & filled map (before) & 12.4 & 24.5 & 2.6 & 6/17 \\
+ & outline map (after) & 6.3 & 11.2 & 1.1 & 0/17 \\
+\midrule
+SLAM Toolbox & loop closure on, \texttt{victoria\_ref} (before) & 92.9 & 180 & 7.9 & 17/17 \\
+ & loop closure off, \texttt{victoria\_ref\_lc} (after) & 5.2 & 8.0 & 0.7 & 0/15 (+2 failed) \\
+\bottomrule
+\end{tabular}

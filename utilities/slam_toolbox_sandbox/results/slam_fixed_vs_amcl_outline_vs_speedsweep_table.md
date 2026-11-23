@@ -1,0 +1,57 @@
+# Localization speed sweep (`slam_fixed_vs_amcl_outline_vs_speedsweep`)
+
+51 runs: Scan matcher (fixed map), AMCL (fixed map), SLAM Toolbox (own map); one 3-lap run per speed. Code: 85289b5, 85289b5+dirty. Figures: `results/plots/slam_fixed_vs_amcl_outline_vs_speedsweep.png`, `slam_fixed_vs_amcl_outline_vs_speedsweep_track.png` (where on the track), `slam_fixed_vs_amcl_outline_vs_speedsweep_offsets.png` (constant vs random error), `slam_fixed_vs_amcl_outline_vs_speedsweep_heatmap.png` (error along the laps).
+
+| Speed [m/s] | Actual [m/s] | Scan lost | Scan RMSE [cm] | Scan p95 [cm] | Scan heading [°] | Scan lap 1→3 [cm] | AMCL lost | AMCL RMSE [cm] | AMCL p95 [cm] | AMCL heading [°] | AMCL lap 1→3 [cm] | SLAM TB lost | SLAM TB RMSE [cm] | SLAM TB p95 [cm] | SLAM TB heading [°] | SLAM TB lap 1→3 [cm] |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0.20 | 0.20 | — | 5.2 | 14 | 0.6 | -0.1 | — | 6.1 | 11 | 1.1 | +0.7 | failed | — | — | — | — |
+| 0.25 | 0.25 | — | 5.1 | 14 | 0.6 | -0.2 | — | 6.3 | 11 | 1.2 | +0.7 | — | 5.2 † | 7.9 | 0.7 | +0.2 |
+| 0.30 | 0.30 | — | 5.0 | 14 | 0.6 | +0.1 | — | 6.6 | 13 | 1.2 | +2.5 | — | 5.2 † | 8.0 | 0.8 | -0.1 |
+| 0.35 | 0.35 | — | 5.2 | 14 | 0.6 | -0.1 | — | 6.3 | 11 | 1.1 | +0.7 | — | 5.2 † | 8.0 | 0.8 | +0.1 |
+| 0.40 | 0.40 | — | 5.1 | 14 | 0.6 | -0.0 | — | 6.3 | 11 | 1.2 | +0.6 | — | 5.2 † | 8.0 | 0.8 | +0.2 |
+| 0.45 | 0.45 | — | 5.1 | 14 | 0.6 | -0.0 | — | 6.1 | 11 | 1.2 | +0.4 | — | 5.2 † | 7.8 | 0.8 | +0.2 |
+| 0.50 | 0.50 | — | 5.1 | 14 | 0.6 | -0.2 | — | 6.7 | 13 | 1.1 | -2.3 | — | 5.2 † | 8.0 | 0.7 | +0.3 |
+| 0.55 | 0.55 | — | 5.1 | 14 | 0.6 | -0.1 | — | 5.7 | 11 | 1.2 | -0.6 | — | 5.3 † | 8.0 | 0.8 | +0.1 |
+| 0.60 | 0.60 | — | 5.1 | 14 | 0.6 | -0.0 | — | 6.1 | 11 | 1.1 | -0.0 | — | 5.3 † | 8.0 | 0.8 | +0.0 |
+| 0.65 | 0.65 | — | 5.3 | 14 | 0.6 | +0.1 | — | 5.4 | 10 | 1.0 | -0.8 | — | 5.2 † | 7.9 | 0.7 | -0.0 |
+| 0.70 | 0.69 | — | 5.2 | 14 | 0.6 | -0.2 | — | 6.3 | 11 | 1.1 | +2.4 | — | 5.2 † | 7.9 | 0.7 | +0.1 |
+| 0.75 | 0.74 | — | 5.0 | 13 | 0.6 | -0.1 | — | 5.5 | 10 | 1.1 | -0.8 | failed | — | — | — | — |
+| 0.80 | 0.79 | — | 4.8 | 13 | 0.6 | -0.1 | — | 6.3 | 11 | 1.2 | +2.7 | — | 5.2 † | 8.0 | 0.7 | +0.1 |
+| 0.85 | 0.84 | — | 5.1 | 14 | 0.6 | -0.1 | — | 6.6 | 12 | 1.2 | +0.7 | — | 5.3 † | 8.0 | 0.7 | +0.0 |
+| 0.90 | 0.89 | — | 4.9 | 14 | 0.6 | -0.1 | — | 6.4 | 11 | 1.1 | +0.3 | — | 5.2 † | 7.8 | 0.7 | +0.1 |
+| 0.95 | 0.94 | — | 5.1 | 14 | 0.6 | +0.0 | — | 5.9 | 11 | 1.2 | +2.7 | — | 5.2 † | 8.0 | 0.7 | +0.0 |
+| 1.0 | 0.99 | — | 5.0 | 14 | 0.6 | -0.2 | — | 6.0 | 11 | 1.1 | +2.1 | — | 5.2 | 7.9 | 0.8 | +0.1 |
+| **All speeds** |  | 0/17 | 5.1 | 14 | 0.6 | -0.1 | 0/17 | 6.3 | 11 | 1.1 | +0.7 | 0/15 +2 failed | 5.2 | 8.0 | 0.7 | +0.1 |
+
+**Columns**, per localizer (several runs at one speed: the median):
+- **Speed / Actual:** commanded cruise speed, and the average actually driven (autodrive slows in turns).
+- **lost:** the lap in which the error first exceeded 0.5 m, `—` if never. In the last row: runs that lost track.
+- **RMSE:** root-mean-square position error over the whole run: the typical error.
+- **p95:** 95% of the time the error was below this: the bad moments, without one spike deciding.
+- **heading:** root-mean-square heading error.
+- **lap 1→3:** RMSE of the last lap minus RMSE of the first. Positive = the error grows over the laps.
+- **All speeds:** medians over every run of that localizer.
+
+**† Runs to treat with care:**
+- SLAM Toolbox (own map) at 0.25 m/s: sim at 0.59x real time; started on attempt 2
+- SLAM Toolbox (own map) at 0.70 m/s: sim at 0.59x real time
+- SLAM Toolbox (own map) at 0.30 m/s: sim at 0.63x real time
+- SLAM Toolbox (own map) at 0.65 m/s: sim at 0.53x real time
+- SLAM Toolbox (own map) at 0.95 m/s: sim at 0.64x real time
+- SLAM Toolbox (own map) at 0.35 m/s: sim at 0.62x real time
+- SLAM Toolbox (own map) at 0.60 m/s: sim at 0.56x real time
+- SLAM Toolbox (own map) at 0.90 m/s: sim at 0.59x real time
+- SLAM Toolbox (own map) at 0.40 m/s: sim at 0.58x real time; started on attempt 2
+- SLAM Toolbox (own map) at 0.55 m/s: sim at 0.55x real time
+- SLAM Toolbox (own map) at 0.80 m/s: sim at 0.74x real time
+- SLAM Toolbox (own map) at 0.45 m/s: sim at 0.61x real time
+- SLAM Toolbox (own map) at 0.50 m/s: sim at 0.55x real time
+- SLAM Toolbox (own map) at 0.85 m/s: sim at 0.60x real time
+- SLAM Toolbox (own map) at 0.20 m/s: failed, no usable data (2026-11-22_162730_i1_slam_fixed)
+- SLAM Toolbox (own map) at 0.75 m/s: failed, no usable data (2026-11-22_162730_i1_slam_fixed)
+
+**Read with care:**
+- Odometry is perfect and the start pose correct, so this measures whether a localizer *disturbs* good odometry, not whether it can *correct* drift. A localizer that does nothing would score about 0.
+- Errors cover only the driving window, not the car parked before and after the laps.
+- Maps: Scan matcher on the filled-in map the world was generated from (`Victoria.yaml`); AMCL on the walls of the map the world was generated from, off-track area unknown (`victoria_outline`); SLAM Toolbox on its own recorded map, made with loop closure (`victoria_ref_lc`) with loop closure off (`localization_no_loop_closure.yaml`).
+- One run per speed: results vary from run to run (especially AMCL and SLAM Toolbox), so read the trend over speeds, not single steps.

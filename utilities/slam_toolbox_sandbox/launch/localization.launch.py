@@ -2,6 +2,11 @@
 Runs SLAM Toolbox in localization mode on a saved map, plus the ground-truth error node.
 Start a fresh sim.launch.py first, so the car is at its spawn pose.
 
+Defaults: maps/victoria_ref_lc (recorded with loop closure, so no doubled walls) and
+config/localization_no_loop_closure.yaml. In localization mode a loop closure re-optimizes the
+whole pose graph, so a wrong match moves both the pose and the saved map; with it off the map
+stays fixed. config/localization.yaml (loop closure on) was the default before 2026-11-22.
+
 Frames: the odometry starts in Gazebo world coordinates, so a map recorded in this
 sandbox has map frame = world frame = Victoria map frame, and map_origin_* stays 0.
 (Only if odometry ever starts at zero again does map_origin_* need to be the spawn
@@ -19,7 +24,7 @@ from launch_ros.actions import Node
 
 from slam_toolbox_sandbox.instance_guard import LOCALIZERS, fail_if_running
 
-DEFAULT_MAP = os.path.expanduser('~/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_gz')
+DEFAULT_MAP = os.path.expanduser('~/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_ref_lc')
 VICTORIA_START = ('-7.6016', '-2.5328', '-0.0638')
 
 
@@ -63,7 +68,7 @@ def launch_setup(context):
 def generate_launch_description():
     pkg = get_package_share_directory('slam_toolbox_sandbox')
     return LaunchDescription([
-        DeclareLaunchArgument('params', default_value=os.path.join(pkg, 'config', 'localization.yaml')),
+        DeclareLaunchArgument('params', default_value=os.path.join(pkg, 'config', 'localization_no_loop_closure.yaml')),
         DeclareLaunchArgument('map', default_value=DEFAULT_MAP, description='serialized map, without file extension'),
         DeclareLaunchArgument('x', default_value=VICTORIA_START[0], description='spawn pose used in sim.launch.py'),
         DeclareLaunchArgument('y', default_value=VICTORIA_START[1]),

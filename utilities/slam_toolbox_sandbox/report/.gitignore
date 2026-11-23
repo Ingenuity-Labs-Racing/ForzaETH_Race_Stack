@@ -1,0 +1,7 @@
+# LaTeX build files (main.pdf is kept)
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.out
+*.synctex.gz

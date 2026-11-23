@@ -75,9 +75,9 @@ spawn poses) can be used directly in Gazebo.
 |---|---|
 | Drive | Differential drive (not Ackermann): 0.3 m wheel track, 0.05 m wheels, rear ball caster. Takes `geometry_msgs/Twist` on `/cmd_vel`. |
 | Lidar | Similar to a Hokuyo UST-10LX: 270°, 1081 beams, 40 Hz, 0.06–30 m, Gaussian range noise σ = 0.01 m. Frame `laser`, 0.1 m ahead of and 0.14 m above `base_link`. |
-| Odometry (`/odom`, TF `odom→base_link`) | Gazebo's **exact** pose of the car, from the `OdometryPublisher` plugin. No noise, no drift. |
+| Odometry (`/odom`, TF `odom→base_link`) | Gazebo's **exact** pose of the car, from the `OdometryPublisher` plugin: no noise, no drift. `sim.launch.py odom_noise:=<level>` replaces it with a drifting copy (see [Odometry noise](#odometry-noise)). |
 | Wheel odometry (`/wheel_odom`) | From the DiffDrive plugin. Published but **not used**: the wheels slip in fast turns in this simple model. |
-| Ground truth (`/ground_truth`) | Also the exact pose, in the `world` frame. A separate topic so `/odom` can be made noisy later without touching the reference. |
+| Ground truth (`/ground_truth`) | Also the exact pose, in the `world` frame. A separate topic, so it stays exact when the odometry is noisy. |
 
 ### Frames
 
@@ -99,23 +99,51 @@ and compares it with `/ground_truth`.
 
 Only use one at a time: both publish `/cmd_vel`. Foxglove's drive pad also does.
 
+### Odometry noise
+
+By default the localizers get perfect odometry, so a localizer that did nothing would score 0.
+`sim.launch.py odom_noise:=<level>` makes the odometry drift like a real car's: Gazebo's exact
+odometry moves to `/odom_true`, and the `odom_noise` node publishes `/odom` and `odom→base_link`
+from a corrupted copy. `/ground_truth` stays exact. Each 50 Hz step of the car's motion is
+distorted and added up from the true start pose:
+
+| Error term | Level 1 | Like on the car |
+|---|---|---|
+| Distance scale | +2 % | ERPM gain or tire radius slightly off |
+| Turn (yaw rate) scale | +2 % | steering or gyro scale |
+| Gyro bias | 0.2 °/s | the heading creeps even on a straight |
+| Random walk | 1 cm and 0.3° per √m driven | per-step noise |
+
+- **Levels:** level 2 doubles every term, level 4 quadruples it, and so on. Level 1 is a guess at a
+  real car (VESC + IMU through an EKF), not a measurement.
+- **Standing still:** nothing changes while the car stands still, so the start pose stays exact.
+- **Seed:** `odom_seed` picks the random part. The benchmark uses seed = run number, so every
+  localizer gets the same odometry in its run r.
+- **Size:** at level 1 and 1.0 m/s the odometry alone is ~1.5 m and 10–13° off after one lap.
+
+The benchmark's `odom` "localizer" runs no localizer at all (`launch/odom_only.launch.py`: a fixed
+identity `map→odom`). Its error is the odometry's own drift, the reference for what a localizer
+removes.
+
 ### The three localizers
 
 All three start from the spawn pose and publish `map→odom`.
 
 | | SLAM Toolbox | Nav2 AMCL | `scan_match_localizer` |
 |---|---|---|---|
-| Launch / config | `localization.launch.py` / `config/localization.yaml` | `amcl.launch.py` / `config/amcl.yaml` | `scan_match.launch.py` / `config/scan_match.yaml` |
-| Map | Its own serialized pose graph (`.posegraph` + `.data`), recorded in this sim | Map image: `Victoria.yaml` by default | Map image: `Victoria.yaml` by default |
-| How it works | Adds each new scan to a short rolling buffer in its pose graph. Corrections against the saved map only happen through loop closure, which re-optimizes the graph, so **the map keeps changing** while it runs. Between corrections it uses odometry only. | Particle filter (500–2000 particles, likelihood-field model, 60 beams per update). Updates after 0.1 m or 0.1 rad of travel. Recovery is off (`recovery_alpha_* = 0`): once lost it stays lost. | For each scan (every 4th beam): predicts the pose from odometry, then refines it with Gauss-Newton so the points land on the walls of a precomputed distance field. A weak prior keeps the odometry guess along straights. A match is rejected if fewer than 30 % of points land within 0.1 m of a wall or if it moves the pose more than 0.5 m. The map is loaded once and never changes. |
+| Launch / config | `localization.launch.py` / `config/localization_no_loop_closure.yaml` | `amcl.launch.py` / `config/amcl.yaml` | `scan_match.launch.py` / `config/scan_match.yaml` |
+| Map | Its own serialized pose graph (`.posegraph` + `.data`), recorded in this sim: `maps/victoria_ref_lc` by default | Map image: `maps/victoria_outline` by default | Map image: `maps/victoria_outline` by default |
+| How it works | Matches each new scan against its last few scans and the nearby scans of the saved pose graph (Karto), and takes a weighted mean. **Loop closure is off** in localization: with it on, a wrong match re-optimizes the whole graph and moves the saved map too (jumps of 0.5–2 m on Victoria; `config/localization.yaml` still has it on). Without it the map stays fixed, but it can't recover once it is off by more than its search window (~0.25 m). | Particle filter (500–2000 particles, likelihood-field model, 60 beams per update). Updates after 0.1 m or 0.1 rad of travel. Recovery is off (`recovery_alpha_* = 0`): once lost it stays lost. | For each scan (every 4th beam): predicts the pose from odometry, then refines it with Gauss-Newton so the points land on the walls of a precomputed distance field. A weak prior keeps the odometry guess along straights. A match is rejected if fewer than 30 % of points land within 0.1 m of a wall or if it moves the pose more than 0.5 m. The map is loaded once and never changes. |
 | Re-initialize | RViz/Foxglove pose tool (`/initialpose`) | `/initialpose` | `/initialpose` (searches only ~0.5 m around the given pose) |
 
 ### Measuring the error (`pose_error`)
 
 `pose_error` starts with every localization and mapping launch. For each `/ground_truth` message, it
-looks up `map→base_link` at the **same timestamp**. If there's no estimate for that time the
-sample is skipped and counted as skipped, because comparing against an older pose would add fake
-error while the car moves.
+looks up `map→base_link` at the **same timestamp**, because comparing against an older pose would
+add fake error while the car moves. The estimate for a timestamp often arrives a little after the
+ground truth (one more hop through the localizer, or through `odom_noise`), so each sample waits up
+to 0.5 s of sim time; only then is it skipped and counted as skipped. Before 2026-11-22 samples were
+skipped right away, which dropped 22–50 % of them (and nearly all with noisy odometry).
 
 - Publishes `/slam_eval/position_error` [m] and `/slam_eval/yaw_error` [rad].
 - Logs a running summary every 2 s and a `FINAL:` line on Ctrl+C.
@@ -130,6 +158,8 @@ The benchmark reports these numbers per run:
 | `yaw_rmse_deg` / `yaw_max_deg` | Same for heading [deg] |
 | `samples` | Number of compared samples (skipped ones not included) |
 | `lap_done` | `true` if autodrive finished its laps before the timeout |
+| `params` / `map` | The localizer's parameter file and map (`none` for `odom`). Rows from before 2026-11-22 say `default` for the launch file's default of the time (SLAM Toolbox: `localization.yaml`, loop closure on) |
+| `odom_noise` | Odometry noise level of the run; empty in rows from before 2026-11-22, which all had perfect odometry |
 
 The plots count a run as having **lost track** once its position error exceeds 0.5 m.
 
@@ -137,9 +167,17 @@ The plots count a run as having **lost track** once its position error exceeds 0
 
 | Map | Format | What it is | Used by |
 |---|---|---|---|
-| `stack_master/maps/Victoria/Victoria.yaml` | Image (`.png` + `.yaml`) | The map the Gazebo world was generated from, so it matches the walls exactly | AMCL, scan matcher, `png_to_world` |
-| `maps/victoria_ref` | SLAM Toolbox pose graph | A near-exact reference map, recorded with `config/mapping_reference.yaml`: the scan matcher may only move a scan ~1 cm / ~0.2° from the perfect odometry, and loop closure is off. **Simulator only**, since real odometry drifts. Committed to the repo. | SLAM Toolbox in the benchmark |
-| `maps/victoria_gz` | SLAM Toolbox pose graph | The map you record yourself in [walkthrough 2](#2-record-a-slam-toolbox-map) with the normal `config/mapping.yaml`. Not in the repo. | `localization.launch.py` by default |
+| `stack_master/maps/Victoria/Victoria.yaml` | Image (`.png` + `.yaml`) | The race stack's map, which the Gazebo world was generated from. White is track; the whole off-track area is filled black. | `png_to_world`, `outline_map` |
+| `maps/victoria_outline` | Image (`.png` + `.yaml`) | Only the walls of `Victoria.yaml`: exactly the wall pixels the Gazebo walls are built from, with the rest of the black area marked unknown (gray). Made with [`outline_map`](REFERENCE.md#outline_map-make-an-outline-map-for-localization). Committed to the repo. | AMCL and the scan matcher by default |
+| `maps/victoria_ref` | SLAM Toolbox pose graph | A near-exact reference map, recorded with `config/mapping_reference.yaml`: the scan matcher may only move a scan ~1 cm / ~0.2° from the perfect odometry, and loop closure is off. **Simulator only**, since real odometry drifts. Committed to the repo. | SLAM Toolbox in the benchmark until 2026-11-22 |
+| `maps/victoria_ref_lc` | SLAM Toolbox pose graph | Like `victoria_ref`, but recorded with loop closure on (`config/mapping_reference_lc.yaml`). The tight matcher still drifted up to 28 cm / 2.5° over the lap; without loop closure that drift leaves doubled walls where the drive ends back at the start, as in `victoria_ref`. | SLAM Toolbox by default (`localization.launch.py` and the benchmark) |
+| `maps/victoria_gz` | SLAM Toolbox pose graph | The map you record yourself in [walkthrough 2](#2-record-a-slam-toolbox-map) with the normal `config/mapping.yaml`. Not in the repo. | `localization.launch.py map:=...` |
+
+**Why an outline map:** AMCL and the scan matcher score a lidar point by its distance to the nearest
+occupied pixel. On the filled `Victoria.yaml` that distance is 0 anywhere in the black area, so a
+point that overshoots a wall still counts as a perfect hit and a wrong pose is hardly penalized.
+The lidar only ever sees wall faces, so the localizers get only the walls. Results from before
+2026-11-21 used the filled map (the `map` column of `results/summary.csv` says which).
 
 ---
 
@@ -218,7 +256,7 @@ If Gazebo crashes with OGRE/render errors, regenerate the world with `--render-e
 ### 2. Record a SLAM Toolbox map
 
 Only needed for SLAM Toolbox: it can't localize on a plain map image. You can skip this and use
-the committed `maps/victoria_ref` instead.
+the committed `maps/victoria_ref_lc`, which `localization.launch.py` loads by default.
 
 ```bash
 # terminal 1
@@ -234,7 +272,7 @@ gets back to the start, the walls should snap into place with no doubled walls. 
 from a fourth terminal while mapping is still running:
 
 ```bash
-# pose graph: what localization.launch.py loads -> maps/victoria_gz.posegraph + .data
+# pose graph: for localization.launch.py map:=... -> maps/victoria_gz.posegraph + .data
 ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph \
   "{filename: '$HOME/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_gz'}"
 # image: for viewing, or as map:= for AMCL / the scan matcher -> maps/victoria_gz_img.pgm + .yaml
@@ -251,7 +289,7 @@ Restart the sim so the car is back at its spawn pose.
 ```bash
 # terminal 1
 ros2 launch slam_toolbox_sandbox sim.launch.py
-# terminal 2   (add map:=$HOME/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_ref to use the reference map)
+# terminal 2   (add map:=$HOME/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_gz for your own map)
 ros2 launch slam_toolbox_sandbox localization.launch.py
 # terminal 3
 ros2 run slam_toolbox_sandbox autodrive --ros-args -p speed:=0.8 -p laps:=1.0
@@ -269,8 +307,10 @@ and a `FINAL:` line on Ctrl+C.
 Things to try:
 
 - **Speed:** drive faster (`speed:=1.5`, or `q` in teleop) and watch the error. For SLAM Toolbox the
-  main knobs are `minimum_travel_distance` / `minimum_travel_heading` in `config/localization.yaml`:
-  between corrections it uses odometry only.
+  main knobs are `minimum_travel_distance` / `minimum_travel_heading` in
+  `config/localization_no_loop_closure.yaml`: between corrections it uses odometry only.
+- **Noisy odometry:** start the sim with `odom_noise:=1` (or 2, 4, ...) and see how much drift the
+  localizer removes. See [Odometry noise](#odometry-noise).
 - **Different start:** spawn halfway round the track. Pass the same pose to both launches:
   ```bash
   ros2 launch slam_toolbox_sandbox sim.launch.py x:=4.264 y:=3.699 yaw:=3.513
@@ -284,12 +324,12 @@ Things to try:
 Same as walkthrough 3, with a different launch in terminal 2:
 
 ```bash
-ros2 launch slam_toolbox_sandbox amcl.launch.py        # AMCL on Victoria.yaml
-ros2 launch slam_toolbox_sandbox scan_match.launch.py  # scan matcher on Victoria.yaml
+ros2 launch slam_toolbox_sandbox amcl.launch.py        # AMCL on maps/victoria_outline
+ros2 launch slam_toolbox_sandbox scan_match.launch.py  # scan matcher on maps/victoria_outline
 ```
 
-Both read the map image the world was generated from, so they show how good localization gets
-with a perfect map. The same speed, start and initial-guess tests apply.
+Both read the walls of the map the world was generated from (`maps/victoria_outline`), so they
+show how good localization gets with a perfect map. The same speed, start and initial-guess tests apply.
 
 ### 5. Run a benchmark
 
@@ -313,34 +353,49 @@ parallel workers (about 1.5–2.5 h), with a live progress bar:
 
 ```bash
 ./scripts/run_speed_sweep.sh                         # Ctrl+C only stops watching; `watch` re-attaches, `stop` aborts
-python3 scripts/sweep_report.py --tag speedsweep     # table: results/speedsweep_table.md, figure: results/plots/speedsweep.png
+python3 scripts/sweep_report.py --tag speedsweep     # table: results/speedsweep_table.md, figures: results/plots/speedsweep*.png
 ```
 
 Keep the Mac awake with the lid open for the whole sweep (`caffeinate -dims` on the host, plugged
 in): sleep freezes Docker and spoils the runs in progress. Details are in
 [REFERENCE.md](REFERENCE.md#scriptsrun_speed_sweepsh-speed-sweep).
 
+**Odometry noise test:** the same tooling with corrupted odometry ([Odometry noise](#odometry-noise)):
+the three localizers plus the odometry alone, at noise levels 0–8, three runs each, at 1.0 m/s
+(60 runs, about 25–30 min on 5 workers):
+
+```bash
+TAG=odom_noise LOCALIZERS="scan amcl slam odom" SPEEDS=1.0 NOISE="0 1 2 4 8" REPEATS=3 WORKERS=5 ./scripts/run_speed_sweep.sh
+python3 scripts/sweep_report.py --tag odom_noise     # with several noise levels, the noise level is the report's axis
+```
+
 ---
 
 ## Results so far
 
-From `results/summary.csv`: 1-lap runs tagged `baseline` and `compare`, 2026-10-07 to 2026-10-26,
-all on Victoria with default parameters.
+**Speed sweep, perfect odometry** (2026-11-21/22): one 3-lap run per localizer at each of 17 speeds
+from 0.20 to 1.00 m/s, errors over the driving window only. Table and figures:
+`results/slam_fixed_vs_amcl_outline_vs_speedsweep_table.md` and `results/plots/`.
 
-| Localizer | Map | Runs (0.8 / 1.5 m/s) | Median position RMSE (0.8 / 1.5) | Median heading RMSE | Runs that lost track (> 0.5 m) |
+| Localizer | Map / config (tag) | Median position RMSE | p95 | Heading RMSE | Runs that lost track (> 0.5 m) |
 |---|---|---|---|---|---|
-| Scan matcher | `Victoria.yaml` | 12 / 12 | 4.8 cm / 4.4 cm | 0.7° | 1 of 24, caused by an outside `/initialpose` reset, not by the matcher |
-| AMCL | `Victoria.yaml` | 10 / 8 | 13.6 cm / 16.1 cm | 2.1–2.2° | 4 of 18, all in or entering the right-hand hairpin (x 4–6, y 1–3.5) |
-| SLAM Toolbox | `victoria_ref` | 2 / 1 | 84 cm / 24 cm | 4.7–7.0° | 3 of 3 |
+| Scan matcher | filled `Victoria.yaml` (`speedsweep`) | 5.1 cm | 14 cm | 0.6° | 0 of 17 |
+| AMCL | `victoria_outline` (`amcl_outline`) | 6.3 cm | 11 cm | 1.1° | 0 of 17 |
+| SLAM Toolbox | `victoria_ref_lc`, loop closure off (`slam_fixed`) | 5.2 cm | 8.0 cm | 0.7° | 0 of 15 (2 runs failed to start, a benchmark bug since fixed) |
 
-- The fixed-map scan matcher is the most accurate and the most consistent.
-- AMCL is about 3× worse. When it loses track at the hairpin it never recovers, because recovery
-  is turned off.
-- SLAM Toolbox's localization mode drifts between strong map matches and is 5–20× worse. It also
-  can't be made to keep its map fixed.
+- None of them depends on speed in this range.
+- **AMCL needed the outline map.** On the filled map it lost track in 6 of 17 runs (sudden jumps of
+  3–4 m on the way into the hairpin), and its typical error was 12 cm.
+- **SLAM Toolbox needed loop closure off in localization**, and a map recorded with loop closure.
+  With loop closure on it lost track in all 17 runs, at the same place ~2.5 m after the start.
+- The SLAM Toolbox sweep ran at 0.53–0.74× real time (6 parallel workers), which gives it more CPU
+  than it would have on the car. A single run at full speed gave the same 5 cm.
+- With perfect odometry a localizer that does nothing scores 0, so these numbers only show how much
+  each one disturbs good odometry. The odometry noise test (walkthrough 5) measures how much drift
+  each one removes.
 
-Charts: `results/plots/` (run `scripts/plot_results.py`). All of these numbers come with perfect
-odometry: read [Gaps](#gaps) before drawing conclusions about the car.
+Older 1-lap results (tags `baseline` and `compare`, 2026-10) used the filled map for AMCL and the
+scan matcher and loop closure on for SLAM Toolbox: the table above supersedes them.
 
 ---
 
@@ -348,21 +403,24 @@ odometry: read [Gaps](#gaps) before drawing conclusions about the car.
 
 ### How the simulation differs from the car
 
-- **Odometry is perfect.** `/odom` is Gazebo's exact pose. On the car, odometry comes from the
-  VESC and IMU through an EKF and drifts, especially at speed and in slides. With perfect odometry
-  and a correct start pose, a localizer that never corrects anything would score close to 0, so the
-  current benchmark measures how much each localizer *disturbs* good odometry, not how well it
-  *corrects* bad odometry. Adding odometry noise or bias is the most important missing piece.
+- **Odometry is perfect by default.** `/odom` is Gazebo's exact pose. On the car, odometry comes
+  from the VESC and IMU through an EKF and drifts, especially at speed and in slides. With perfect
+  odometry and a correct start pose, a localizer that never corrects anything would score close to
+  0, so the default benchmark measures how much each localizer *disturbs* good odometry, not how
+  well it *corrects* bad odometry. [Odometry noise](#odometry-noise) (`-n` in the benchmark) adds
+  scale errors, a gyro bias and a random walk. It is a simple model: no wheel slip in hard turns or
+  under acceleration, and its level-1 numbers are a guess. A bag from the car (VESC/IMU odometry
+  against Cartographer) would let us calibrate them.
 - **No IMU** is simulated.
 - **Diff drive, not Ackermann.** The car can turn on the spot and has no steering geometry,
   tire slip or vehicle dynamics.
-- **Low speeds.** Everything so far is at 0.8 and 1.5 m/s. Race speeds are several times higher,
+- **Low speeds.** Everything so far is at 0.2–1.5 m/s. Race speeds are several times higher,
   where scan motion distortion and odometry errors grow.
 - **Idealized lidar.** Only Gaussian range noise (σ = 0.01 m). No dropouts, reflective or
   transparent surfaces, motion distortion during a sweep, or mounting offsets. The world is flat,
   so the car never pitches or rolls.
 - **The map is perfect.** The walls are generated from `Victoria.yaml`, and AMCL and the scan
-  matcher localize on that same file. A real map from a mapping run is never this exact, so their
+  matcher localize on exactly those wall pixels (`maps/victoria_outline`). A real map from a mapping run is never this exact, so their
   results are an upper bound.
 - **Static, empty track.** No opponent cars, people, or changes since mapping (moved boards, open
   doors).
@@ -371,8 +429,9 @@ odometry: read [Gaps](#gaps) before drawing conclusions about the car.
   never makes the car drive badly. That keeps runs comparable, but it's not how the car works:
   on the car, the controller drives on the estimate.
 - **Timing and CPU.** Without a GPU the lidar is rendered in software and the sim can run slower
-  than real time (Gazebo prints the real-time factor). The CPU cost of each localizer hasn't been
-  measured, and it matters on the NUC/Jetson.
+  than real time (Gazebo prints the real-time factor). Rough CPU cost in the benchmark container
+  (10 Apple M5 cores): Gazebo ~0.7 core per sim, SLAM Toolbox ~1.2 cores (2.2 with loop closure on)
+  and ~0.9 GB, AMCL ~0.3 core. Not measured on the NUC/Jetson, where it matters.
 
 ### Tooling and open issues
 

@@ -1,0 +1,11 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+ & & \multicolumn{4}{c}{Speed sweep, 17 speeds} & \multicolumn{3}{c}{1.0\,m/s, 3 runs${}^{b}$} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-9}
+Localizer & Map & \makecell[rb]{{RMSE} \\ {[cm]}} & \makecell[rb]{{p95} \\ {[cm]}} & \makecell[rb]{{Heading} \\ {[$^\circ$]}} & Lost & \makecell[rb]{{RMSE} \\ {[cm]}} & \makecell[rb]{{p95} \\ {[cm]}} & \makecell[rb]{{Heading} \\ {[$^\circ$]}} \\
+\midrule
+Scan matcher & filled${}^{a}$ & 5.1 & 13.9 & 0.6 & 0/17 & 4.0 & 9.9 & 0.5 \\
+AMCL & outline & 6.3 & 11.2 & 1.1 & 0/17 & 6.2 & 11.8 & 1.2 \\
+SLAM Toolbox & \texttt{victoria\_ref\_lc} & 5.2 & 8.0 & 0.7 & 0/15 (+2 failed) & 5.2 & 7.9 & 0.8 \\
+\bottomrule
+\end{tabular}

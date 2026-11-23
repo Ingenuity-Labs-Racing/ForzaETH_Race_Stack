@@ -1,0 +1,9 @@
+\begin{tabular}{llrrrr}
+\toprule
+\makecell[lb]{{Localizer}} & \makecell[lb]{{Map /} \\ {configuration}} & \makecell[rb]{{RMSE} \\ {[cm]}} & \makecell[rb]{{p95} \\ {[cm]}} & \makecell[rb]{{Heading} \\ {RMSE [$^\circ$]}} & \makecell[rb]{{Lost} \\ {track}} \\
+\midrule
+Scan matcher & filled \texttt{Victoria.yaml} & 5.1 & 13.9 & 0.6 & 0/17 \\
+AMCL & filled \texttt{Victoria.yaml} & 12.4 & 24.5 & 2.6 & 6/17 \\
+SLAM Toolbox & \texttt{victoria\_ref}, loop closure on & 92.9 & 180 & 7.9 & 17/17 \\
+\bottomrule
+\end{tabular}

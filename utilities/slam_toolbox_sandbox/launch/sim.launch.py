@@ -2,6 +2,11 @@
 Starts Gazebo with the track world, spawns the car and bridges its topics to ROS.
 
 Default spawn pose is the start of the Victoria centerline (from global_waypoints.json).
+
+odom_noise:=<level> (default 0 = perfect odometry) corrupts the odometry the localizers get:
+Gazebo's exact odometry goes to /odom_true and the odom_noise node publishes a drifting /odom
+and odom->base_link instead (level 1 = roughly a real car, see odom_noise.py). odom_seed picks
+the random part. /ground_truth always stays exact.
 """
 import os
 
@@ -21,6 +26,7 @@ def launch_setup(context):
     gui = LaunchConfiguration('gui').perform(context).lower() == 'true'
     rviz = LaunchConfiguration('rviz').perform(context).lower() == 'true'
     foxglove = LaunchConfiguration('foxglove').perform(context).lower() == 'true'
+    noise = float(LaunchConfiguration('odom_noise').perform(context))
 
     # -r: start running immediately, -s: server only (no Gazebo window)
     gz_cmd = ['ign', 'gazebo', '-r', '-v', '3', world]
@@ -41,7 +47,9 @@ def launch_setup(context):
         ],
     )
 
-    # [ : Gazebo -> ROS,  ] : ROS -> Gazebo
+    # [ : Gazebo -> ROS,  ] : ROS -> Gazebo. With odometry noise, the exact odometry and its TF are
+    # moved aside (/odom_true, /odom_true/tf) and odom_noise publishes /odom and odom->base_link.
+    remap = [('/odom', '/odom_true'), ('/model/car/tf', '/odom_true/tf')] if noise > 0 else [('/model/car/tf', '/tf')]
     bridge = Node(
         package='ros_gz_bridge', executable='parameter_bridge', output='screen',
         arguments=[
@@ -53,7 +61,7 @@ def launch_setup(context):
             '/model/car/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
             '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
         ],
-        remappings=[('/model/car/tf', '/tf')],
+        remappings=remap,
         parameters=[{'use_sim_time': True}],
     )
 
@@ -73,6 +81,12 @@ def launch_setup(context):
     )
 
     actions = [gazebo, TimerAction(period=3.0, actions=[spawn]), bridge, laser_tf, world_tf]
+    if noise > 0:
+        actions.append(Node(
+            package='slam_toolbox_sandbox', executable='odom_noise', output='screen',
+            parameters=[{'level': noise, 'seed': int(LaunchConfiguration('odom_seed').perform(context)),
+                         'use_sim_time': True}],
+        ))
     if foxglove or rviz:
         # Draws the car at its true pose on /car_marker (only needed when something displays it)
         actions.append(Node(
@@ -105,5 +119,8 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz', default_value='false', description='RViz in the VNC display (fallback for Foxglove)'),
         DeclareLaunchArgument('foxglove', default_value='true', description='bridge for the Foxglove app: ws://localhost:8765'),
         DeclareLaunchArgument('car_scale', default_value='1.0', description='size of the drawn car, 1.0 = true size'),
+        DeclareLaunchArgument('odom_noise', default_value='0',
+                              description='odometry noise level: 0 = perfect, 1 = roughly a real car, 2 = double, ...'),
+        DeclareLaunchArgument('odom_seed', default_value='1', description='seed of the random part of the odometry noise'),
         OpaqueFunction(function=launch_setup),
     ])

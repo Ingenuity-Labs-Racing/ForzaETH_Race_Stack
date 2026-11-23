@@ -36,11 +36,13 @@ JUMP = 3.0  # [m] beyond this a run jumped to the wrong place rather than drifte
 # Corners where runs struggle, as map boxes [m] (x0, x1, y0, y1): shaded in mean_by_localizer, zoomed in mean_on_track
 CORNERS = [('hairpin', (4.3, 6.7, 1.0, 4.2)), ('left-hand corner', (-8.9, -6.3, -1.6, 2.4))]
 
-# Colors follow the localizer, in a fixed order (validated categorical slots 1-3)
+# Colors follow the localizer, in a fixed order (validated categorical slots 1-3). "odom" (odometry
+# only, no localizer) is a reference, not a series: neutral grey, drawn dashed by sweep_report.py.
 LOCALIZERS = [
     ('scan', 'Scan matcher (fixed map)', '#2a78d6'),
     ('amcl', 'AMCL (fixed map)', '#eb6834'),
-    ('slam', 'SLAM Toolbox (own map, updating)', '#1baf7a'),
+    ('slam', 'SLAM Toolbox (own map)', '#1baf7a'),
+    ('odom', 'Odometry only (no localizer)', '#8f8e89'),
 ]
 NAME = {k: n for k, n, _ in LOCALIZERS}
 COLOR = {k: c for k, _, c in LOCALIZERS}

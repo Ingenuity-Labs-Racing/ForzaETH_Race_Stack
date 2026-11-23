@@ -9,6 +9,7 @@ Publishes /slam_eval/position_error and /slam_eval/yaw_error (plot with rqt_plot
 logs a running summary every 2 s and a final summary on Ctrl+C.
 """
 import math
+from collections import deque
 
 import rclpy
 from nav_msgs.msg import Odometry
@@ -17,6 +18,9 @@ from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Float64
 from tf2_ros import Buffer, TransformException, TransformListener
+
+# [s] of sim time a ground-truth sample waits for the estimate at its timestamp, then it is skipped
+MAX_WAIT = 0.5
 
 
 def yaw_from_quat(q):
@@ -45,6 +49,7 @@ class PoseError(Node):
         self.pos_errs = []
         self.yaw_errs = []
         self.tf_misses = 0
+        self.pending = deque()  # ground-truth samples (stamp, x, y, yaw) waiting for the estimate
         self.first_gt_logged = False
         # line-buffered, so no samples are lost if the node is killed
         self.csv = open(csv_path, 'w', buffering=1) if csv_path else None
@@ -64,13 +69,29 @@ class PoseError(Node):
         gy = -math.sin(self.oyaw) * dx + math.cos(self.oyaw) * dy
         gyaw = wrap(wyaw - self.oyaw)
 
-        # SLAM estimate at the same timestamp. Samples without one are skipped: comparing
-        # against an older SLAM pose would add fake error whenever the car moves.
-        try:
-            tf = self.tf_buffer.lookup_transform('map', 'base_link', Time.from_msg(msg.header.stamp))
-        except TransformException:
-            self.tf_misses += 1
-            return
+        # Compare with the estimate at exactly this timestamp: an older estimate would add fake error
+        # whenever the car moves. The estimate for a timestamp can arrive after the ground truth for
+        # it (one more hop: the localizer's map->odom, or odom_noise's odom->base_link), so samples
+        # wait in a queue for up to MAX_WAIT and are only then skipped.
+        stamp = Time.from_msg(msg.header.stamp)
+        self.pending.append((stamp, gx, gy, gyaw))
+        while self.pending:
+            s, px, py, pyaw = self.pending[0]
+            if self.tf_buffer.can_transform('map', 'base_link', s):
+                self.pending.popleft()
+                try:
+                    tf = self.tf_buffer.lookup_transform('map', 'base_link', s)
+                except TransformException:
+                    self.tf_misses += 1
+                    continue
+                self.record(s, px, py, pyaw, tf)
+            elif (stamp - s).nanoseconds * 1e-9 > MAX_WAIT:
+                self.pending.popleft()
+                self.tf_misses += 1
+            else:
+                break
+
+    def record(self, stamp, gx, gy, gyaw, tf):
         sx, sy = tf.transform.translation.x, tf.transform.translation.y
         syaw = yaw_from_quat(tf.transform.rotation)
 
@@ -81,7 +102,7 @@ class PoseError(Node):
         self.pos_pub.publish(Float64(data=pos_err))
         self.yaw_pub.publish(Float64(data=yaw_err))
         if self.csv:
-            t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            t = stamp.nanoseconds * 1e-9
             self.csv.write(f'{t:.3f},{gx:.4f},{gy:.4f},{gyaw:.4f},{sx:.4f},{sy:.4f},{syaw:.4f},'
                            f'{pos_err:.4f},{yaw_err:.4f}\n')
 

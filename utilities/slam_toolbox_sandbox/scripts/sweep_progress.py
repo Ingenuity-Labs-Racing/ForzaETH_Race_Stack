@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Live progress of a speed sweep started by run_speed_sweep.sh: one overall bar and one line per
-worker, refreshed every 2 s.
+Live progress of a sweep started by run_speed_sweep.sh (speeds, odometry noise levels, repeats):
+one overall bar and one line per worker, refreshed every 2 s.
 
     python3 scripts/sweep_progress.py [--tag speedsweep]    (or: ./scripts/run_speed_sweep.sh watch)
 
@@ -26,13 +26,23 @@ LAP_M = 36.8      # [m] Victoria centerline lap
 OVERHEAD_S = 30   # [s] per run: sim start, localizer start, shutdown
 REFRESH_S = 2
 
-RUN_START = re.compile(r'^\[[^\]]*\] (\w+), speed ([\d.]+) m/s, run')
+# "[tag] slam, speed 1.0 m/s, noise 2, run 3 ..." (before 2026-11-22 without the noise part and run number)
+RUN_START = re.compile(r'^\[[^\]]*\] (\w+), speed ([\d.]+) m/s(?:, noise ([\d.]+))?, run (\d+)?')
 LAPS_DONE = re.compile(r'([\d.]+) laps')
 
 
 def run_work(speed, laps):
     """Expected seconds for one run."""
     return laps * LAP_M / float(speed) + OVERHEAD_S
+
+
+def run_name(loc, speed, noise, run):
+    """Base name of a run's files, as eval_localization.sh writes them."""
+    return f"{loc}_speed_{speed}{f'_noise{noise}' if float(noise) > 0 else ''}_run{run}"
+
+
+def describe(loc, speed, noise, run):
+    return f"{loc:<4} {speed:>4} m/s" + (f" noise {noise}" if float(noise) > 0 else '') + (f" #{run}" if run != '1' else '')
 
 
 def hms(s):
@@ -52,11 +62,12 @@ def latest_laps(log):
 
 class Worker:
     def __init__(self, num, cfg, plan):
-        self.num, self.delay, self.speeds = num, cfg['delay_s'], cfg['speeds']
-        self.laps, self.localizers = plan['laps'], plan['localizers']
+        self.num, self.delay, self.laps = num, cfg['delay_s'], plan['laps']
+        # runs as localizer:speed:noise:run (plans before 2026-11-22: every localizer at each of 'speeds')
+        jobs = cfg.get('jobs') or [f'{loc}:{s}:0:1' for loc in plan['localizers'] for s in cfg['speeds']]
         self.log = RESULTS / f"{plan['tag']}_worker{num}.log"
-        self.total = sum(run_work(s, self.laps) for s in self.speeds) * len(self.localizers)
-        self.runs_total = len(self.speeds) * len(self.localizers)
+        self.total = sum(run_work(j.split(':')[1], self.laps) for j in jobs)
+        self.runs_total = len(jobs)
 
     def update(self):
         """Parses the worker log. Sets done work, finished runs, failures and the current run."""
@@ -70,7 +81,7 @@ class Worker:
             if line.startswith('Output: '):
                 self.out = Path(line[len('Output: '):].strip())
             elif m := RUN_START.match(line):
-                self.current = (m.group(1), m.group(2))
+                self.current = (m.group(1), m.group(2), m.group(3) or '0', m.group(4) or '1')
             elif line.startswith('  RETRY'):
                 self.retries += 1
             elif self.current and (line.startswith('  lap done:') or line.startswith('  FAIL:')):
@@ -84,7 +95,7 @@ class Worker:
                 self.finished = True
         self.lap = None
         if self.current and self.out:
-            self.lap = latest_laps(self.out / f'{self.current[0]}_speed_{self.current[1]}_run1.autodrive.log')
+            self.lap = latest_laps(self.out / f'{run_name(*self.current)}.autodrive.log')
             self.work += OVERHEAD_S / 2 + (self.lap or 0) * LAP_M / float(self.current[1])
 
     def eta(self, elapsed):
@@ -105,10 +116,10 @@ class Worker:
             return f'w{self.num}  starts in {int(self.delay - elapsed)} s', 0.0
         if not self.current:
             return f'w{self.num}  between runs', 0.0
-        loc, speed = self.current
+        run = describe(*self.current)
         if self.lap is None:
-            return f'w{self.num}  {loc:<4} {speed:>4} m/s  starting sim + localizer', 0.0
-        return f'w{self.num}  {loc:<4} {speed:>4} m/s  lap {self.lap:.2f}/{self.laps:g}', self.lap / self.laps
+            return f'w{self.num}  {run}  starting sim + localizer', 0.0
+        return f'w{self.num}  {run}  lap {self.lap:.2f}/{self.laps:g}', self.lap / self.laps
 
 
 def alive_pids(tag):
@@ -146,7 +157,7 @@ def main():
         bars.append(tqdm(total=1000, position=0, dynamic_ncols=True,
                          bar_format=f'Sweep {tag} {{percentage:3.0f}}%|{{bar:30}}| {{desc}}'))
         for i, _ in enumerate(workers):
-            bars.append(tqdm(total=1000, position=i + 1, dynamic_ncols=True, bar_format='  {desc:<46} |{bar:24}|'))
+            bars.append(tqdm(total=1000, position=i + 1, dynamic_ncols=True, bar_format='  {desc:<56} |{bar:24}|'))
     last_plain = 0.0
     try:
         while True:
@@ -193,8 +204,8 @@ def main():
         print(f'\nSweep "{tag}" finished in {hms(elapsed)}: {runs_done}/{runs_total} runs, {failed} failed, '
               f'{retries} retr{"y" if retries == 1 else "ies"}.')
     for w in workers:
-        for loc, speed, why in w.failed:
-            print(f'  failed: {loc} at {speed} m/s - {why}')
+        for loc, speed, noise, run, why in w.failed:
+            print(f'  failed: {describe(loc, speed, noise, run)} - {why}')
     print(f'Table and figure: python3 scripts/sweep_report.py --tag {tag}')
 
 

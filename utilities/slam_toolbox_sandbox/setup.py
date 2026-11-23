@@ -27,7 +27,9 @@ setup(
     entry_points={
         'console_scripts': [
             'png_to_world = slam_toolbox_sandbox.png_to_world:main',
+            'outline_map = slam_toolbox_sandbox.outline_map:main',
             'pose_error = slam_toolbox_sandbox.pose_error:main',
+            'odom_noise = slam_toolbox_sandbox.odom_noise:main',
             'autodrive = slam_toolbox_sandbox.autodrive:main',
             'car_marker = slam_toolbox_sandbox.car_marker:main',
             'scan_match_localizer = slam_toolbox_sandbox.scan_match_localizer:main',

@@ -1,0 +1,11 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \multicolumn{2}{c}{Perfect odometry${}^{a}$} & \multicolumn{2}{c}{Noise level 4} & \multicolumn{2}{c}{Noise level 8} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Localizer & RMSE [cm] & Lost & RMSE [cm] & Lost & RMSE [cm] & Lost \\
+\midrule
+Scan matcher & 5.1 & 0/17 & 5.3 & 0/3 & 11.6 & 0/3 \\
+AMCL & 6.3 & 0/17 & 23.7 & 1/3 & 36.5 & 3/3 \\
+SLAM Toolbox & 5.2 & 0/15 (+2 failed) & 5.3 & 0/3 & 7.3 & 0/3 \\
+\bottomrule
+\end{tabular}

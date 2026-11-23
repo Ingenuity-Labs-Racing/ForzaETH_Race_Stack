@@ -2,8 +2,10 @@
 Runs the scan-to-map localizer on the fixed ground-truth Victoria map, plus the ground-truth
 error node. Start a fresh sim.launch.py first.
 
-The map is stack_master/maps/Victoria, the map the Gazebo world was generated from. Its frame
-is the Gazebo world frame, so the spawn pose is also the initial pose.
+The default map is maps/victoria_outline: the walls of stack_master/maps/Victoria (exactly the
+wall pixels the Gazebo world was built from) with the rest of the filled-in off-track area
+marked unknown, made by outline_map. Its frame is the Gazebo world frame, so the spawn pose is
+also the initial pose.
 """
 import os
 
@@ -15,7 +17,7 @@ from launch_ros.actions import Node
 
 from slam_toolbox_sandbox.instance_guard import LOCALIZERS, fail_if_running
 
-DEFAULT_MAP = os.path.expanduser('~/ws/src/race_stack/stack_master/maps/Victoria/Victoria.yaml')
+DEFAULT_MAP = os.path.expanduser('~/ws/src/race_stack/utilities/slam_toolbox_sandbox/maps/victoria_outline.yaml')
 VICTORIA_START = ('-7.6016', '-2.5328', '-0.0638')
 
 
