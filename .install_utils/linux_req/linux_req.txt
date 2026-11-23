@@ -15,6 +15,7 @@ ros-humble-urg-node
 ros-humble-ackermann-msgs
 ros-humble-control-msgs
 ros-humble-rosbridge-server
+ros-humble-foxglove-bridge
 ros-humble-serial-driver
 ros-humble-test-msgs
 ros-humble-rqt
