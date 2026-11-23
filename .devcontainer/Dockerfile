@@ -21,7 +21,7 @@ RUN apt-get update && apt-get upgrade -y
 
 # install folders are added granularly to avoid unnecessary rebuilds when developing the Dockerfile
 ADD .install_utils/linux_req/ /tmp/.install_utils/ 
-RUN xargs apt-get install -y < /tmp/.install_utils/linux_req.txt
+RUN apt-get update && xargs apt-get install -y < /tmp/.install_utils/linux_req.txt
 
 ADD .install_utils/python_req.txt /tmp/.install_utils/python_req.txt
 RUN pip3 install -r /tmp/.install_utils/python_req.txt &&\
