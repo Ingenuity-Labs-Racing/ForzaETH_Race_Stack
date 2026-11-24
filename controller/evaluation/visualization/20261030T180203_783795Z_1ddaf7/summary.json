@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "experiment": {
+    "map": "crown",
+    "controller": "MPC",
+    "controller_config_sha256": "448524715885e6cd056ce920d08008d675281bab16e87431dd6b6b7589620ec6",
+    "controller_parameters": {
+      "horizon": 20,
+      "dt": 0.025,
+      "wheelbase": 0.3302,
+      "state_weights": [
+        10,
+        100.0,
+        98.01,
+        13.12
+      ],
+      "input_weights": [
+        343.04,
+        8.02
+      ],
+      "terminal_weight_multiplier": 30.0,
+      "speed_min": 0.0,
+      "speed_max": 10.0,
+      "steering_min": -0.4,
+      "steering_max": 0.4,
+      "steering_rate_min": -3.2,
+      "steering_rate_max": 3.2,
+      "solver_plugin": "qpoases",
+      "max_solve_time": null,
+      "input_timeout": null,
+      "latency_compensation_s": 0.0
+    },
+    "latency_compensation_enabled": false,
+    "experiment_config": {
+      "map_name": "crown",
+      "controller": "MPC",
+      "controller_config": "controller/controller/mpc/mpc_params.yaml",
+      "lookup_table": "NUC2_hangar_pacejka",
+      "laps": 2,
+      "start_waypoint": 0,
+      "output_directory": "controller/visualization",
+      "startup_timeout_s": 120.0,
+      "reset_timeout_s": 15.0,
+      "trial_timeout_s": 180.0,
+      "stall_timeout_s": 15.0,
+      "data_timeout_s": 3.0,
+      "stop_timeout_s": 5.0
+    },
+    "source_root": "/home/racer/ws/src/race_stack",
+    "simulator_parameters": {
+      "mu": 1.0489,
+      "C_Sf": 4.718,
+      "C_Sr": 5.4562,
+      "lf": 0.15875,
+      "lr": 0.17145,
+      "h": 0.074,
+      "m": 3.47,
+      "I": 0.04712,
+      "s_min": -0.4189,
+      "s_max": 0.4189,
+      "sv_min": -3.2,
+      "sv_max": 3.2,
+      "v_switch": 7.319,
+      "a_max": 9.51,
+      "v_min": -5.0,
+      "v_max": 20.0,
+      "width": 0.2032,
+      "length": 0.58
+    },
+    "lookup_table": null,
+    "reference_definition": "First time-sampled predictive-controller reference",
+    "initial_pose": {
+      "x": -2.845036102974196,
+      "y": -0.5334536188383308,
+      "heading": -0.11850053825906204
+    }
+  },
+  "requested_laps": 2,
+  "completed_laps": 2,
+  "success": true,
+  "termination_reason": "completed",
+  "stop_confirmed": true,
+  "metric_definitions": {
+    "position_error_m": "Euclidean distance from measured pose to the recorded first controller reference.",
+    "heading_error_deg": "Measured heading minus recorded reference heading, wrapped to [-180, 180] degrees.",
+    "speed_tracking_error_mps": "Measured speed minus recorded reference speed.",
+    "speed_command_error_mps": "Published speed command minus recorded reference speed.",
+    "steering_command_error_rad": "Published steering angle minus recorded reference angle; not actuator feedback.",
+    "statistics": "Sample-based over finite values; absolute percentiles; no interpolation across missing samples.",
+    "saturation": "Fraction of finite samples at either configured bound within 1e-5.",
+    "solve_duration": "Solver invocation and first-command extraction; excludes reference building.",
+    "lap_detection": "Signed unwrapped Frenet progress from the reset position; a full track length per lap."
+  },
+  "total_duration_s": 20.49560989842576,
+  "lap_boundaries_s": [
+    10.482335621501408,
+    20.49560989842576
+  ],
+  "overall": {
+    "samples": 795,
+    "errors": {
+      "position_error_m": {
+        "samples": 795,
+        "mean": 0.09083297437496426,
+        "mean_absolute": 0.09083297437496426,
+        "rmse": 0.10447570792758629,
+        "p95_absolute": 0.1834428185829078,
+        "max_absolute": 0.2401979369359222
+      },
+      "heading_error_deg": {
+        "samples": 795,
+        "mean": 0.13252944712930428,
+        "mean_absolute": 3.376037526158905,
+        "rmse": 4.3549169569506025,
+        "p95_absolute": 8.325051950435055,
+        "max_absolute": 15.072413994768377
+      },
+      "speed_tracking_error_mps": {
+        "samples": 795,
+        "mean": -0.24366936722035057,
+        "mean_absolute": 0.36816801488156653,
+        "rmse": 0.8156889297332284,
+        "p95_absolute": 0.6293391289615574,
+        "max_absolute": 6.049810134690127
+      },
+      "speed_command_error_mps": {
+        "samples": 795,
+        "mean": -0.0014408941038002777,
+        "mean_absolute": 0.0027505817798569765,
+        "rmse": 0.004036955484027296,
+        "p95_absolute": 0.009622031199029378,
+        "max_absolute": 0.01670322414260239
+      },
+      "steering_command_error_rad": {
+        "samples": 795,
+        "mean": 0.004456830921652565,
+        "mean_absolute": 0.03426842201199554,
+        "rmse": 0.04559125278106897,
+        "p95_absolute": 0.10241650398871122,
+        "max_absolute": 0.1620595212735628
+      }
+    },
+    "sample_interval_s": {
+      "samples": 794,
+      "mean": 0.025680658617128465,
+      "median": 0.02505768049999979,
+      "p95": 0.04413710649999948,
+      "maximum": 0.09410768700000016
+    },
+    "missing_cycle_count": 0,
+    "solve_time_s": {
+      "samples": 795,
+      "mean": 0.013177577916981393,
+      "median": 0.00995262200012803,
+      "p95": 0.033819710699935966,
+      "maximum": 0.09632935799891129
+    },
+    "saturation_percent": {
+      "command_speed": 0.0,
+      "command_steering": 0.37735849056603776,
+      "steering_rate": 0.0
+    },
+    "invalid_outputs": 0,
+    "solver_failures": 0,
+    "missing_input_events": 0
+  },
+  "laps": [
+    {
+      "lap": 1,
+      "completed": true,
+      "duration_s": 10.482335621501408,
+      "partial_duration_s": null,
+      "samples": 406,
+      "errors": {
+        "position_error_m": {
+          "samples": 406,
+          "mean": 0.08877777110072788,
+          "mean_absolute": 0.08877777110072788,
+          "rmse": 0.10285810862987323,
+          "p95_absolute": 0.1838484540837358,
+          "max_absolute": 0.21043135947670422
+        },
+        "heading_error_deg": {
+          "samples": 406,
+          "mean": -0.13324520002615844,
+          "mean_absolute": 3.4087979244603845,
+          "rmse": 4.427509962789338,
+          "p95_absolute": 8.553573925421428,
+          "max_absolute": 12.722113578820757
+        },
+        "speed_tracking_error_mps": {
+          "samples": 406,
+          "mean": -0.3721163036708238,
+          "mean_absolute": 0.49079122893031407,
+          "rmse": 1.1053748874776408,
+          "p95_absolute": 2.551966604396454,
+          "max_absolute": 6.049810134690127
+        },
+        "speed_command_error_mps": {
+          "samples": 406,
+          "mean": -0.0011872327944438084,
+          "mean_absolute": 0.002703754508539565,
+          "rmse": 0.0038689658679652056,
+          "p95_absolute": 0.009130700328446206,
+          "max_absolute": 0.012811008435247295
+        },
+        "steering_command_error_rad": {
+          "samples": 406,
+          "mean": 0.004324954973840125,
+          "mean_absolute": 0.034595516007267985,
+          "rmse": 0.04584679539529997,
+          "p95_absolute": 0.10338925870388149,
+          "max_absolute": 0.14859652874410234
+        }
+      },
+      "sample_interval_s": {
+        "samples": 405,
+        "mean": 0.025638013264197533,
+        "median": 0.02502920299999989,
+        "p95": 0.044538966400000206,
+        "maximum": 0.09410768700000016
+      },
+      "missing_cycle_count": 0,
+      "solve_time_s": {
+        "samples": 406,
+        "mean": 0.013332522465524172,
+        "median": 0.009975422500247078,
+        "p95": 0.03422700000055556,
+        "maximum": 0.09632935799891129
+      },
+      "saturation_percent": {
+        "command_speed": 0.0,
+        "command_steering": 0.0,
+        "steering_rate": 0.0
+      },
+      "invalid_outputs": 0,
+      "solver_failures": 0,
+      "missing_input_events": 0
+    },
+    {
+      "lap": 2,
+      "completed": true,
+      "duration_s": 10.013274276924351,
+      "partial_duration_s": null,
+      "samples": 389,
+      "errors": {
+        "position_error_m": {
+          "samples": 389,
+          "mean": 0.09297799373059401,
+          "mean_absolute": 0.09297799373059401,
+          "rmse": 0.10613770972288072,
+          "p95_absolute": 0.1779892828258428,
+          "max_absolute": 0.2401979369359222
+        },
+        "heading_error_deg": {
+          "samples": 389,
+          "mean": 0.4099189246231807,
+          "mean_absolute": 3.3418454394997776,
+          "rmse": 4.277837907989641,
+          "p95_absolute": 7.911792678682547,
+          "max_absolute": 15.072413994768377
+        },
+        "speed_tracking_error_mps": {
+          "samples": 389,
+          "mean": -0.10960906850854556,
+          "mean_absolute": 0.24018594572014876,
+          "rmse": 0.2907282909084751,
+          "p95_absolute": 0.4782782777749209,
+          "max_absolute": 0.7567951144380927
+        },
+        "speed_command_error_mps": {
+          "samples": 389,
+          "mean": -0.0017056408688355645,
+          "mean_absolute": 0.0027994554871959712,
+          "rmse": 0.004205135335175349,
+          "p95_absolute": 0.009838616719401113,
+          "max_absolute": 0.01670322414260239
+        },
+        "steering_command_error_rad": {
+          "samples": 389,
+          "mean": 0.004594470085693313,
+          "mean_absolute": 0.03392703342052868,
+          "rmse": 0.04532300588153693,
+          "p95_absolute": 0.09982651663767175,
+          "max_absolute": 0.1620595212735628
+        }
+      },
+      "sample_interval_s": {
+        "samples": 388,
+        "mean": 0.02572009870618556,
+        "median": 0.02505768049999979,
+        "p95": 0.04246751564999957,
+        "maximum": 0.08466495000000052
+      },
+      "missing_cycle_count": 0,
+      "solve_time_s": {
+        "samples": 389,
+        "mean": 0.01301586201284677,
+        "median": 0.009949829000106547,
+        "p95": 0.033131747801235165,
+        "maximum": 0.07522194299963303
+      },
+      "saturation_percent": {
+        "command_speed": 0.0,
+        "command_steering": 0.7712082262210797,
+        "steering_rate": 0.0
+      },
+      "invalid_outputs": 0,
+      "solver_failures": 0,
+      "missing_input_events": 0
+    }
+  ],
+  "collision_count": null,
+  "limitations": [
+    "No measured steering angle; steering plot compares commands with references.",
+    "Simulator collision flags are not published by the existing bridge; timeout/stall detection is used.",
+    "First lap starts from rest; second lap is continuous.",
+    "Position error is waypoint error, not perpendicular distance to a path segment."
+  ],
+  "report_generation_success": true
+}

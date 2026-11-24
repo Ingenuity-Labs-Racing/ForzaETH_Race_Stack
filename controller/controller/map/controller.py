@@ -62,8 +62,17 @@ class MAP_Controller:
         self.loop_rate = loop_rate
         self.LUT_name = LUT_name
 
+        self.reset()
+
+        self.logger_info = logger_info
+        self.logger_warn = logger_warn
+
+        self.steer_lookup = LookupSteerAngle(self.LUT_name, logger_info)
+
+    def reset(self):
+        """Clear command history before a new evaluation trial."""
         # Parameters in the controller
-        self.lateral_error_list = [] # list of squared lateral error 
+        self.lateral_error_list = [] # list of squared lateral error
         self.curr_steering_angle = 0
         self.idx_nearest_waypoint = None # index of nearest waypoint to car
         self.track_length = None
@@ -79,11 +88,8 @@ class MAP_Controller:
         self.curvature_waypoints = 0
         self.d_vs = np.zeros(10)
         self.acceleration_command = 0
-                
-        self.logger_info = logger_info
-        self.logger_warn = logger_warn
 
-        self.steer_lookup = LookupSteerAngle(self.LUT_name, logger_info)
+
     # main loop    
     def main_loop(self, state, position_in_map, waypoint_array_in_map, speed_now, opponent, position_in_map_frenet, acc_now, track_length):
         # Updating parameters from manager

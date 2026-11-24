@@ -7,6 +7,7 @@
   <arg name="use_ekf2" default="False" description="True to enable EKF2 global fusion (Cartographer pose + EKF1 velocity)" />
   <arg name="use_pose_graph_fix" default="False" description="True to use f110_2d_loc_pgfix.lua with stronger odometry weights and more loop closures" />
   <arg name="profile" default="False" description="Run cpu_monitor alongside the stack" />
+  <arg name="visualize" default="True" description="Launch RViz for simulation" />
 
   <let name="sensors_config" value="$(find-pkg-share stack_master)/config/sensors.yaml" />
   <let name="mux_config" value="$(find-pkg-share stack_master)/config/mux.yaml" />
@@ -21,7 +22,10 @@
 
   <!-- launch simulator -->
   <group if="$(var sim)">
-    <include file="$(find-pkg-share f1tenth_gym_ros)/launch/gym_bridge_launch.py">
+    <include if="$(var visualize)" file="$(find-pkg-share f1tenth_gym_ros)/launch/gym_bridge_launch.py">
+      <arg name="map_yaml_path" value="$(var map_path)/$(var map_name).yaml" />
+    </include>
+    <include unless="$(var visualize)" file="$(find-pkg-share stack_master)/launch/subsystems/headless_simulator.launch.py">
       <arg name="map_yaml_path" value="$(var map_path)/$(var map_name).yaml" />
     </include>
     <!-- only needed in sim -->
