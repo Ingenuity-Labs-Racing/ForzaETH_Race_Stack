@@ -43,11 +43,12 @@ slam_toolbox:
 
     # Loop closure
     do_loop_closing: true
-    loop_search_maximum_distance: 3.0
+    loop_search_maximum_distance: 8.0
     loop_match_minimum_chain_size: 10
     loop_match_maximum_variance_coarse: 3.0
     loop_match_minimum_response_coarse: 0.35
     loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 15.0
 
     # Correlation (local scan matching search window)
     correlation_search_space_dimension: 0.5
